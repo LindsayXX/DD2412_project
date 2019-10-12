@@ -6,7 +6,7 @@ import tensorflow as tf
 import scipy.io as sci
 import os
 import tensorflow_datasets as tfds
-import tqdm
+#import tqdm
 
 class DataSet:
 
@@ -50,6 +50,32 @@ class DataSet:
             print("Image shape: ", image.numpy().shape)
             print("Label: ", label.numpy())
 
+def format(image, label):
+    image = tf.cast(image, tf.float32)
+    image = (image / 127.5) - 1  # normalize?
+    image = tf.image.resize(image, (IMG_SIZE, IMG_SIZE))
+    return image, label
+
+def flower(batch_size=32):
+    '''
+    Load data from tensorflow_datasets
+    '''
+    raw_train, raw_test = tfds.load(name="oxford_flowers102", split=["train", "test"])
+    '''
+    for features in raw_train.take(3):
+        image, label = features["image"], features["label"]
+        plt.imshow(image)
+        # plt.imshow(image.numpy()[:, :, 0].astype(np.float32), cmap=plt.get_cmap("gray"))
+        print("Label: %d" % label.numpy())
+        plt.show()
+    '''
+    train = raw_train.map(format)
+    ds_test = raw_test.map(format)
+    ds_train = train.shuffle(1000).batch(batch_size).prefetch(10)  # tf.data.experimental.AUTOTUNE
+    # for batch in ds_train:
+    #   ...
+    return ds_train, ds_test
+
 
 if __name__=="__main__":
     IMG_SIZE = 448
@@ -59,30 +85,3 @@ if __name__=="__main__":
     image_path = this_root + "/102flowers/jpg"
     flower = DataSet(image_path, IMG_SIZE)
     train_data, test_data = flower.load
-
-    '''Load data from tensorflow_datasets'''
-    raw_train, raw_test = tfds.load(name="oxford_flowers102", split=["train", "test"])
-    for features in raw_train.take(3):
-        image, label = features["image"], features["label"]
-        plt.imshow(image)
-        #plt.imshow(image.numpy()[:, :, 0].astype(np.float32), cmap=plt.get_cmap("gray"))
-        print("Label: %d" % label.numpy())
-        plt.show()
-
-    def format(image, label):
-        image = tf.cast(image, tf.float32)
-        image = (image / 127.5) - 1 # normalize?
-        image = tf.image.resize(image, (IMG_SIZE, IMG_SIZE))
-        return image, label
-
-    train = raw_train.map(format)
-    ds_test = raw_test.map(format)
-
-    # Build your input pipeline
-    ds_train = train.shuffle(1000).batch(32).prefetch(10)# tf.data.experimental.AUTOTUNE
-    # prefetch will enable the input pipeline to asynchronously fetch batches while
-    # your model is training.
-    # Now you could loop over batches of the dataset and train
-    # for batch in mnist_train:
-    #   ...
-

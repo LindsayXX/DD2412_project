@@ -5,8 +5,6 @@ from tensorflow.keras import Model
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import SGD
 
-
-
 IMG_SIZE = 448
 '''Multi-Attention Subnet'''
 #TODO: continue the network
@@ -31,18 +29,17 @@ feature_batch_average = global_average_layer(feature_batch)
 
 
 '''Region Cropping Subnet'''
-#TODO: need rearrange the code to different files
 def RCN(input):
     '''
     :param input: attention map with size： BATCH_SIZE * IMG_SIZE * IMG_SIZE * 1
     :return: region cropping subnet
     '''
-    layers = [Dense(#TODO: HIDDEN_SIZE, input_dim=(IMG_SIZE, IMG_SIZE)),
-            Activation('relu'),
+    # TODO: figure out the HIDDEN_SIZE and Activation type, correct the mask function
+    layers = [Dense(HIDDEN_SIZE, input_dim=(IMG_SIZE, IMG_SIZE)),
+            Activation('relu'), #?
             Dense(3,)]
     model = Sequential(layers)
     # should we compile here?
-
     return model
 
 # boxcar mask
@@ -55,7 +52,6 @@ def mask(image, coord):
     :param coord: [tx, ty, ts], type?
     :return: croped image, IMG_SIZE/2 * IMG_SIZE/2 * 3
     '''
-    # TODO: need correct
     v_x = f(image[:, 1] - coord[0] + 0.5 * coord[2]) - f(image[:, 1] - coord[0] - 0.5 * coord[2])
     v_y = f(image[1, :] - coord[1] + 0.5 * coord[2]) - f(image[1, :] - coord[1] - 0.5 * coord[2])
     V = tf.matmul(v_x, v_y)
@@ -63,5 +59,5 @@ def mask(image, coord):
 
     return X_part
 
-
+'''Joint Feature Learning Subnet'''
 
