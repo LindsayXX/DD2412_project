@@ -1,7 +1,7 @@
 Replication track in [NeurIPS 2019 Reproducibility Challenge](https://reproducibility-challenge.github.io/neurips2019/)
 of [Learning where to look: Semantic-Guided Multi-Attention Localization for Zero-Shot Learning](https://arxiv.org/abs/1903.00502)
 
-This project hasn't finished yet, more information will be update soon!
+This project is not finished yet, more information will be updated soon!
 
 ### 1. Multi-Attention Subnet: 
 1. VGG19(?) backbone  <br /> 
