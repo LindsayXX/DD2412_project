@@ -1,87 +1,71 @@
-# import IPython.display as display
-from PIL import Image
-import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow as tf
-import os
+# from tensorflow.python.framework import ops
+# from tensorflow.python.framework import dtypes
+# from tensorflow.compat.v2.io import decode_image
+# from tensorflow.python.ops.gen_io_ops import read_file
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.layers import Dense
+# from tensorflow.keras import optimizers
+# from tensorflow.keras.regularizers import l2
+# from tensorflow.compat.v2.image import resize
+# from tensorflow.compat.v2.image import ResizeMethod
+# import matplotlib.pylab as plt
+# import numpy as np
 
-# from tensorflow_core.python.framework import ops
-# from tensorflow_core.python.framework import dtypes
-
-# from tensorflow_core.python.ops.gen_image_ops import decode_png
-# from tensorflow_core.python.ops.gen_io_ops import read_file
-
-
-class Bird:
-
+class Database():
     def __init__(self):
-        label = None
-        image = None
-        parts = None
-        id = None
+        self.path = '/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/*/*'
+        self.IMG_HEIGHT = 448
+        self.IMG_WIDTH = 448
+        self.IMG_SIZE = 448
 
-class Database:
+    def get_label(self, file_path):
+        # convert the path to a list of path components
+        parts = tf.strings.split(file_path, '/')
+        # The second to last is the class-directory
+        return parts[-2]
 
-    def __init__(self, parent_path):
-        self.parent_path = parent_path
-        self.birds = {}
-        self.triplets = {}
+    def decode_img(self, img):
+        # convert the compressed string to a 3D uint8 tensor
+        img = tf.image.decode_jpeg(img, channels=3)
+        # Use `convert_image_dtype` to convert to floats in the [0,1] range.
+        img = tf.image.convert_image_dtype(img, tf.float32)
+        # resize the image to the desired size.
+        return tf.image.resize(img, [self.IMG_WIDTH, self.IMG_HEIGHT])
 
-    def create_triplets(self, label_file=None, images_file=None):
-        """
-        Function in charge of creating the triplets (id, label, image_path) from the dataset
-        :param label_file: txt file which contains the labels of each image
-        :param images_file: txt file which contains the path of each image
-        :return:
-        """
-        id = []
-        labels = []
-        im_paths = []
+    def process_path(self, file_path):
+        label = self.get_label(file_path)
+        # load the raw data from the file as a string
+        img = tf.io.read_file(file_path)
+        img = self.decode_img(img)
+        return img, label
 
-        with open(self.parent_path+label_file, 'r') as File:
-            infoFile = File.readlines()
-            for line in infoFile:
-                words = line.split()
-                id.append(int(words[0]))
-                im_paths.append(self.parent_path + "images/"+ words[1])
-        with open(self.parent_path+images_file, 'r') as File:
-            infoFile = File.readlines()
-            for line in infoFile:
-                words = line.split()
-                labels.append(int(words[1]))
-
-        NumFiles = len(labels)
-        tim_paths = tf.convert_to_tensor(im_paths)
-        tlabels = tf.convert_to_tensor(labels)
-        tid = tf.convert_to_tensor(id)
-
-        for i in range(NumFiles):
-            self.triplets[i] = (tid[i], tlabels[i], tim_paths[i])
-
-    def read_batch(self, init, end):
-        """
-        Function in charge of creating a batch of images from information
-        in triplets
-        :param init: index to the first value to extract from triplets
-        :param end: index to the last value to extract from triplets
-        :return:
-        """
-        batch = {}
-        ind_batch = 0
-        for i in np.arange(init, end):
-            b = Bird()
-            im_path = self.triplets[i][2]
-            rawIm = tf.io.read_file(im_path)
-            b.image = tf.io.decode_png(rawIm)
-            b.label = self.triplets[i][1]
-            b.id = self.triplets[i][0]
-            batch[ind_batch] = b
-            ind_batch += 1
-        return batch
+    def format_example(self, image, label):
+        image = tf.cast(image, tf.float32)
+        image = (image / 127.5) - 1
+        image = tf.image.resize(image, (self.IMG_SIZE, self.IMG_SIZE))
+        return image, label
 
 if __name__ == '__main__':
-    parent_path = "/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/"
-    db = Database(parent_path)
-    db.create_triplets(label_file="images.txt", images_file="image_class_labels.txt")
-    batch = db.read_batch(10, 30)
-    print("hola pianola")
+    database = Database()
+    list_ds = tf.data.Dataset.list_files(str('/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/*/*'))
+    labeled_ds = list_ds.map(database.process_path, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    DATASET_SIZE = 37322
+    train_size = int(0.7 * DATASET_SIZE)
+    val_size = int(0.15 * DATASET_SIZE)
+    test_size = int(0.15 * DATASET_SIZE)
+
+    full_dataset = labeled_ds
+    raw_train = full_dataset.take(train_size)
+    test_dataset = full_dataset.skip(train_size)
+    raw_validation = test_dataset.skip(test_size)
+    raw_test = test_dataset.take(test_size)
+
+    train = raw_train.map(database.format_example)
+    validation = raw_validation.map(database.format_example)
+    test = raw_test.map(database.format_example)
+
+    cosa = train.take(1)
+
+    print("Hola")
