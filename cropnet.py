@@ -9,7 +9,7 @@ class RCN(tf.keras.Model):
         super(RCN, self).__init__()
         self.flat = tf.keras.layers.Flatten()
         self.fc1 = tf.keras.layers.Dense(hidden_unit, activation="relu")  # , input_shape=(map_size * map_size))
-        self.fc2 = tf.keras.layers.Dense(3)
+        self.fc2 = tf.keras.layers.Dense(3, activation="sigmoid")
         self.activation = tf.keras.layers.ReLU(max_value=map_size - 1)
         self.map_size = map_size
 
@@ -38,10 +38,12 @@ class RCN(tf.keras.Model):
                     V_y = 1 / (1 + tf.math.exp(-k * (j - t[n, 1] + 0.5 * t[n, 2]))) - 1 / (1 + tf.math.exp(-k * (j - t[n, 1] - 0.5 * t[n, 2])))
                     V[n, i, j] = tf.multiply(V_x, V_y)
             '''
-            V_x = 1 / (1 + tf.math.exp(-k * (X - t[n, 0] + tf.multiply(0.5, t[n, 2])))) - 1 / (
-                        1 + tf.math.exp(-k * (X - t[n, 0] - tf.multiply(0.5, t[n, 2]))))
-            V_y = 1 / (1 + tf.math.exp(-k * (Y - t[n, 1] + tf.multiply(0.5, t[n, 2])))) - 1 / (
-                        1 + tf.math.exp(-k * (Y - t[n, 1] - tf.multiply(0.5, t[n, 2]))))
+            Rx1 = X - tf.multiply(tf.ones(X.shape), t[n, 0]) - tf.multiply(tf.ones(X.shape), 0.5*t[n, 2])
+            Rx2 = X - tf.multiply(tf.ones(X.shape), t[n, 0]) + tf.multiply(tf.ones(X.shape), 0.5*t[n, 2])
+            Ry1 = Y - tf.multiply(tf.ones(X.shape), t[n, 1]) - tf.multiply(tf.ones(X.shape), 0.5*t[n, 2])
+            Ry2 = Y - tf.multiply(tf.ones(X.shape), t[n, 1]) + tf.multiply(tf.ones(X.shape), 0.5*t[n, 2])
+            V_x = 1 / (1 + tf.math.exp(-k * Rx2)) - 1 / (1 + tf.math.exp(-k * Rx1))
+            V_y = 1 / (1 + tf.math.exp(-k * Ry2)) - 1 / (1 + tf.math.exp(-k * Ry1))
             Vxy.append(tf.multiply(V_x, V_y))
         V = tf.stack(Vxy)
         return V
