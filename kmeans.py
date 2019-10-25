@@ -12,10 +12,11 @@ IMG_WIDTH = 448
 
 class Kmeans(layers.Layer):
 
-    def __init__(self, clusters_n=2, iterations=10):
+    def __init__(self, clusters_n=2, iterations=10, total_channels=512):
         super(Kmeans, self).__init__()
         self.clusters_n = clusters_n
         self.iterations = iterations
+        self.total_channels = total_channels
 
     def call(self, inputs):
         centroids = tf.Variable(tf.slice(tf.random.shuffle(inputs), [0, 0], [self.clusters_n, -1]))
@@ -42,6 +43,35 @@ class Kmeans(layers.Layer):
             t += 1
 
         return assignments
+
+class Average_Pooling(layers.Layer):
+
+    def __init__(self):
+        super( Average_Pooling, self).__init__()
+
+    def call(self, cluster):
+        p_batch = []
+        for b in cluster:
+            H, W = b.shape[1], b.shape[2]
+            p = tf.math.reduce_sum(b, axis=(1, 2))/(H*W)
+            p_batch.append(p)
+        return p_batch
+
+
+class fc(layers.Layer):
+
+    def __init__(self, input_shape):
+        super(fc, self).__init__()
+        self.initializer = tf.keras.initializers.glorot_normal()
+        self.fc1 = tf.keras.layers.Dense(input_shape, activation="relu", kernel_initializer=self.initializer)
+        self.fc2 = tf.keras.layers.Dense(input_shape, activation="sigmoid", kernel_initializer=self.initializer)
+
+    def call(self, p_batch):
+        out = self.fc1(p_batch)
+        out = self.fc2(out)
+        a_batch = self.activation(out)
+        return a_batch
+
 
 def get_max_pixels(batch):
     max_batch = []
@@ -106,6 +136,8 @@ def prepare_for_training(ds, cache=True, shuffle_buffer_size=1000):
 
     return ds
 
+
+
 if __name__ == '__main__':
     data_dir = pathlib.Path('/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/')
     list_ds = tf.data.Dataset.list_files(str(data_dir / '*/*'))
@@ -130,20 +162,53 @@ if __name__ == '__main__':
     max_points = get_max_pixels(feature_batch)
 
     km = Kmeans(clusters_n=2, iterations=10)
-    for p in range(max_points.shape[0]):
-        assign = km.call(max_points[p, :, 0, :])
-        image0 = np.zeros((14, 14))
-        image1 = np.zeros((14, 14))
-        for v in range(assign.shape[0]):
 
-            image = np.array(feature_batch[p, :, :, v])
-            if assign[v].numpy() == 1:
-                image1 += image
-            elif assign[v].numpy() == 0:
-                image0 += image
-        image1 /= np.max(image1)
-        image0 /= np.max(image0)
-        fig, ax = plt.subplots(1, 2)
-        ax[0].imshow(image1)
-        ax[1].imshow(image0)
-        plt.show()
+    batch_cluster0 = []
+    batch_cluster1 = []
+    for m in range(max_points.shape[0]):
+        cluster0 = []
+        cluster1 = []
+        assign = km.call(max_points[m, :, 0, :])
+        for v in range(assign.shape[0]):
+            image = np.array(feature_batch[m, :, :, v])
+            if assign[v].numpy() == 0:
+                cluster0.append(image)
+                image = tf.zeros((14, 14))
+                cluster1.append(image)
+            else:
+                cluster1.append(image)
+                image = tf.zeros((14, 14))
+                cluster0.append(image)
+
+        cluster0 = tf.stack(cluster0)
+        cluster1 = tf.stack(cluster1)
+        batch_cluster0.append(cluster0)
+        batch_cluster1.append(cluster1)
+
+    ap = Average_Pooling()
+    p0 = ap.call(batch_cluster0)
+    p1 = ap.call(batch_cluster1)
+
+    fc0 = fc(512)
+    fc1 = fc(512)
+    a0 = fc0.call(p0)
+    a1 = fc1.call(p1)
+
+    print("hola")
+    # for m in range(max_points.shape[0]):
+    #     assign = km.call(max_points[m, :, 0, :])
+    #     image0 = np.zeros((14, 14))
+    #     image1 = np.zeros((14, 14))
+    #     for v in range(assign.shape[0]):
+    #
+    #         image = np.array(feature_batch[m, :, :, v])
+    #         if assign[v].numpy() == 1:
+    #             image1 += image
+    #         elif assign[v].numpy() == 0:
+    #             image0 += image
+    #     image1 /= np.max(image1)
+    #     image0 /= np.max(image0)
+    #     fig, ax = plt.subplots(1, 2)
+    #     ax[0].imshow(image1)
+    #     ax[1].imshow(image0)
+    #     plt.show()
