@@ -9,20 +9,20 @@ class RCN(tf.keras.Model):
         self.flat = tf.keras.layers.Flatten()
         self.fc1 = tf.keras.layers.Dense(hidden_unit, activation="relu")#, input_shape=(map_size * map_size))
         self.fc2 = tf.keras.layers.Dense(3)
-        self.activation = tf.keras.layers.ReLU(max_value=map_size-1)
+        self.activation = tf.keras.layers.ReLU(max_value=map_size-1)#sigmoid
         self.map_size = map_size
 
-    def call(self, input, training=True):
+    def call(self, input, training=True, k=10):
         out = self.flat(input)
         out = self.fc1(out)
         out = self.fc2(out)
         out = self.activation(out)
         #out = tf.dtypes.cast(out, tf.int32)
-        mask = self.boxcar(out)
+        mask = self.boxcar(out, k)
 
         return mask
 
-    def boxcar(self, t, k=10):
+    def boxcar(self, t, k):
         #V = tf.zeros([t.shape[0], self.map_size, self.map_size])
         V = []
         X = tf.range(start=0, limit=self.map_size)
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     batch_size = 3
     sample_input = tf.random.normal([batch_size, 14, 14])
     crop_net = RCN(hidden_unit=14, map_size=14, image_size=448)
-    mask = crop_net.call(sample_input)
+    mask = crop_net.call(sample_input, k=10)
     sample_image = tf.random.normal([batch_size, 448, 448, 3])
     crop_image, newmask = crop(sample_image, mask)
     for i in range(batch_size):
