@@ -18,7 +18,9 @@ class Kmeans(layers.Layer):
         self.iterations = iterations
 
     def call(self, inputs):
+        # center of the clusters
         centroids = tf.Variable(tf.slice(tf.random.shuffle(inputs), [0, 0], [self.clusters_n, -1]))
+        # cluster assignment: points belong to each cluster
         assignments = tf.Variable(tf.random.uniform((inputs.shape[0],), minval=0, maxval=1, dtype=tf.dtypes.int64))
         t = 0
         while t <= self.iterations:
