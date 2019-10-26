@@ -15,28 +15,42 @@ IMG_SIZE = 448
 
 
 '''Joint Feature Learning Subnet'''
-class JFL(tf.keras.models):
+class JFL(tf.keras.Model):
     def __init__(self, n_classes, semantic_size):
+        super(JFL, self).__init__()
         # mapped feature is a vector of size as semantic feature size (n)
         self.n = semantic_size
-        #self.reshape = tf.keras.layers.Reshape(-1, 1, -1)
-        self.W = tf.keras.layers.Dense(self.n, activation="relu")#, input_shape=(map_size * map_size))
-        self.embedding = tf.keras.layers.Embedding(n_classes, self.n)
+        self.embedding = tf.keras.layers.Embedding(self.n, n_classes)#input: class label, embedding_size=semantic_size
+        self.W = tf.keras.layers.Dense(self.n, activation="relu")# input_shape=(feature_size))
         self.l2loss = tf.keras.layers.Lambda(lambda x: tf.keras.backend.sum(tf.keras.backend.square(x[0] - x[1][:, 0]), 1, keepdims=True))
-        self.softmax = tf
+        self.fc = tf.keras.layers.Dense(n_classes)
 
-    def call(self, theta, phi):
+
+    def call(self, thetas, phi):
         # input: theta - visual feature vector
         # input: phi - semantic feature vector
-        out = self.reshape(theta)
-        out = self.W(out) # should have size 1 * n
-        # compatibility score: s_j^i = theta_i(x)^T W_i phi(y_i)
-        score = tf.linalg.matmul(out, phi)
+        scores = []
+        # 2 types of 'embedding': visual feature(512, 1) -> semantic feature(?, 1)
+        # semantic feature(?, 1) -> classes(n_classes, 1)
+        # center C={c1, c2, ..., c_{n_classes}} e
+        # "We initialize the centers with a Gaussian distribution,
+        # and the mean and standard deviation is (0, 0.01) respectively"
+        center = self.embedding(tf.squeeze(phi))#batch_size?, n_classes, semantic_size
+        for i in range(len(thetas)):
+            theta = thetas[i]
+            #theta = self.reshape(theta)
+            out = self.W(theta) # should have size 1 * n
+            # compatibility score: s_j^i = theta_i(x)^T W_i phi(y_i)
+            scores.append(tf.linalg.matmul(out, phi))
+            l2loss = self.l2loss([tf.math.l2_normalize(tf.squeeze(out)), tf.math.l2_normalize(tf.transpose(center, perm=[0, 2, 1]))])
+        scores = tf.stack(scores)
+        scores = tf.transpose(tf.squeeze(scores))
+        # Normalize the scores???
+        score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
+        softmax = self.fc(score)
         # trainable class centers
-        center = self.embedding(phi)
-        l2loss = self.l2loss([tf.math.l2_normalize(out), tf.math.l2_normalize(center)])
 
-        return score, l2loss
+        return softmax, l2loss
 
 
 #@tf.function
@@ -66,19 +80,10 @@ def CCT_loss(y_true, y_pred, n_classes, margin=0.8):
     masked = y_pred_r[:, :, 0] * tf.cast(mask, tf.float32)  # + (mask2 * tf.cast(tf.logical_not(mask), tf.float32))*tf.constant(float(2**10))
     masked = tf.where(tf.equal(masked, 0.0), np.inf * tf.ones_like(masked), masked)
 
-    minimums = tf.math.reduce_min(masked, axis=1)
-    loss = tf.keras.backend.max(y_pred - minimums + margin, 0)
+    minimum = tf.math.reduce_min(masked, axis=1)
+    loss = tf.keras.backend.max(y_pred - minimum + margin, 0)
 
     return loss
-
-
-class Fusion(tf.keras.models)
-    def __init__(self, n_classes):
-        self.fc = tf.keras.layers.Dense(n_classes) # fully-connected fusion layer
-
-    def call(self, scores):
-        score = tf.concat(scores)
-        return self.fc(score)
 
 # @tf.funcion
 def CLS(score, label):
@@ -96,21 +101,18 @@ if __name__ == '__main__':
     feature_batch = base_model(image_batch)
     
     '''
-    batch_size = 3
+    batch_size = 5
     n_class = 100
     semantic_size = 20
-    sample_feature_1 = tf.random.normal([batch_size, 14, 14])# global feature
-    sample_feature_2 = tf.random.normal([batch_size, 14, 14])# head feature
-    sample_feature_3 = tf.random.normal([batch_size, 14, 14])# tail feature
-    sample_semantic = tf.ones([batch_size, semantic_size])
-    joint_net = JFL(n_classes=n_class, semantic_size=semantic_size)
-    score_1, l2loss = joint_net.call(sample_feature_1, sample_semantic)
-    score_2, l2loss = joint_net.call(sample_feature_2, sample_semantic)
-    score_3, l2loss = joint_net.call(sample_feature_3, sample_semantic)
-    # Should we normalize the scores???
+    sample_feature_1 = tf.random.normal([batch_size, 1, 512])# global feature
+    sample_feature_2 = tf.random.normal([batch_size, 1, 512])# local feature1(head)
+    sample_feature_3 = tf.random.normal([batch_size, 1, 512])# local feature2(tail)
+    sample_semantic = tf.ones([batch_size, semantic_size, 1])
+    sample_labels = tf.zeros([batch_size, 1, n_class])
+    joint_net = JFL(n_class, semantic_size)
+    sample_feature = [sample_feature_1, sample_feature_2, sample_feature_3]
+    y_pred = joint_net.call(sample_feature, sample_semantic)
     # "normalize each descriptor independently, and concatenate them together into
     #  fully-connected fusion layer with softmax function for the final classification. "
     #logits = tf.keras.layers.Dense(inputs=sample_feature, units=n_class, activation=tf.layers.softmax)
-    fusion_layer = Fusion(n_class)
-    sample_feature = [sample_feature_1, sample_feature_2, sample_feature_3]
-    y_pred = fusion_layer.call(sample_feature)
+    
