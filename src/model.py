@@ -27,28 +27,32 @@ class JFL(tf.keras.Model):
 
 
     def call(self, thetas, phi):
-        # input: theta - visual feature vector
-        # input: phi - semantic feature vector
+        """
+        input: theta - visual feature vector
+        input: phi - semantic feature vector
+        2 'embedding': visual feature(512, 1) ->[W]-> semantic feature(?, 1) and
+        semantic feature(?, 1) ->[center]-> classes-semantic embedding (n_classes, ?)
+        """
+        # trainable class centers, C={c1, c2, ..., c_{n_classes}}
+        # initialize: (0, 0.01) Gaussian distribution
+        center = self.embedding(tf.squeeze(phi))# batch_size, n_classes, semantic_size
         scores = []
-        # 2 types of 'embedding': visual feature(512, 1) -> semantic feature(?, 1)
-        # semantic feature(?, 1) -> classes(n_classes, 1)
-        # center C={c1, c2, ..., c_{n_classes}} e
-        # "We initialize the centers with a Gaussian distribution,
-        # and the mean and standard deviation is (0, 0.01) respectively"
-        center = self.embedding(tf.squeeze(phi))#batch_size?, n_classes, semantic_size
+        # need further model integration
         for i in range(len(thetas)):
             theta = thetas[i]
             #theta = self.reshape(theta)
             out = self.W(theta) # should have size 1 * n
             # compatibility score: s_j^i = theta_i(x)^T W_i phi(y_i)
             scores.append(tf.linalg.matmul(out, phi))
+            # compute ||~phi_i - ~Ci|| and ||~phi_i - ~Cj||, '~' is normalization
             l2loss = self.l2loss([tf.math.l2_normalize(tf.squeeze(out)), tf.math.l2_normalize(tf.transpose(center, perm=[0, 2, 1]))])
         scores = tf.stack(scores)
         scores = tf.transpose(tf.squeeze(scores))
         # Normalize the scores???
+        # "normalize each descriptor independently, and concatenate them together into
+        #  fully-connected fusion layer with softmax function for the final classification. "
         score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
         softmax = self.fc(score)
-        # trainable class centers
 
         return softmax, l2loss
 
@@ -56,8 +60,8 @@ class JFL(tf.keras.Model):
 #@tf.function
 def CCT_loss(y_true, y_pred, n_classes, margin=0.8):
     # triplet center loss
-    # modified from https://github.com/popcornell/keras-triplet-center-loss/blob/master/triplet.py
-    # y_true -- semantic feature
+    # Original implementation: https://github.com/popcornell/keras-triplet-center-loss/blob/master/triplet.py
+    # y_true -- semantic class center
     # y_pred -- embedding feature
     print('y_pred.shape = ', y_pred.shape)
     print('total_lengh =', y_pred.shape.as_list()[-1])
@@ -112,7 +116,4 @@ if __name__ == '__main__':
     joint_net = JFL(n_class, semantic_size)
     sample_feature = [sample_feature_1, sample_feature_2, sample_feature_3]
     y_pred = joint_net.call(sample_feature, sample_semantic)
-    # "normalize each descriptor independently, and concatenate them together into
-    #  fully-connected fusion layer with softmax function for the final classification. "
-    #logits = tf.keras.layers.Dense(inputs=sample_feature, units=n_class, activation=tf.layers.softmax)
-    
+
