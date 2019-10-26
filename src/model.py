@@ -23,7 +23,7 @@ class JFL(tf.keras.models):
         self.W = tf.keras.layers.Dense(self.n, activation="relu")#, input_shape=(map_size * map_size))
         self.embedding = tf.keras.layers.Embedding(n_classes, self.n)
         self.l2loss = tf.keras.layers.Lambda(lambda x: tf.keras.backend.sum(tf.keras.backend.square(x[0] - x[1][:, 0]), 1, keepdims=True))
-        #
+        self.softmax = tf
 
     def call(self, theta, phi):
         # input: theta - visual feature vector
@@ -37,18 +37,6 @@ class JFL(tf.keras.models):
         l2loss = self.l2loss([tf.math.l2_normalize(out), tf.math.l2_normalize(center)])
 
         return score, l2loss
-
-
-#@tf.function
-def CLS_loss(score1, score2, score3, labels):
-    # embedding softmax loss - softmax with cross entropy loss
-    # use late fusion strategy -- combine the outputs of the 3 networks
-    # through their last fully-connected layer by score summing
-    # Assume the scores have the same labels
-    scores = tf.math.add_n([score1, score2, score3])
-    loss = tf.nn.softmax_cross_entropy_with_logits(labels, scores)
-
-    return loss
 
 
 #@tf.function
@@ -80,16 +68,22 @@ def CCT_loss(y_true, y_pred, n_classes, margin=0.8):
 
     minimums = tf.math.reduce_min(masked, axis=1)
     loss = tf.keras.backend.max(y_pred - minimums + margin, 0)
-    '''
-    anchor = y_pred[0]
-    pos = y_pred[1]
-    neg = y_pred[2]
-    pos_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, pos)), axis=-1)
-    neg_dist = tf.reduce_sum(tf.square(tf.subtract(anchor, neg)), axis=-1)
-    basic_loss = tf.add(tf.subtract(pos_dist, neg_dist), self.margin)
-    loss = tf.reduce_sum(tf.maximum(basic_loss, 0.0))
-    '''
+
     return loss
+
+
+class Fusion(tf.keras.models)
+    def __init__(self, n_classes):
+        self.fc = tf.keras.layers.Dense(n_classes) # fully-connected fusion layer
+
+    def call(self, scores):
+        score = tf.concat(scores)
+        return self.fc(score)
+
+# @tf.funcion
+def CLS(score, label):
+    return tf.nn.softmax_cross_entropy_with_logits(score, label)
+
 
 
 if __name__ == '__main__':
@@ -103,7 +97,20 @@ if __name__ == '__main__':
     
     '''
     batch_size = 3
-    sample_feature = tf.random.normal([batch_size, 14, 14, 1])
-    sample_semantic = tf.ones([batch_size, 20])
-    joint_net = JFL(n_classes=100, semantic_size=20)
-    score, l2loss = joint_net.call(sample_feature, sample_semantic)
+    n_class = 100
+    semantic_size = 20
+    sample_feature_1 = tf.random.normal([batch_size, 14, 14])# global feature
+    sample_feature_2 = tf.random.normal([batch_size, 14, 14])# head feature
+    sample_feature_3 = tf.random.normal([batch_size, 14, 14])# tail feature
+    sample_semantic = tf.ones([batch_size, semantic_size])
+    joint_net = JFL(n_classes=n_class, semantic_size=semantic_size)
+    score_1, l2loss = joint_net.call(sample_feature_1, sample_semantic)
+    score_2, l2loss = joint_net.call(sample_feature_2, sample_semantic)
+    score_3, l2loss = joint_net.call(sample_feature_3, sample_semantic)
+    # Should we normalize the scores???
+    # "normalize each descriptor independently, and concatenate them together into
+    #  fully-connected fusion layer with softmax function for the final classification. "
+    #logits = tf.keras.layers.Dense(inputs=sample_feature, units=n_class, activation=tf.layers.softmax)
+    fusion_layer = Fusion(n_class)
+    sample_feature = [sample_feature_1, sample_feature_2, sample_feature_3]
+    y_pred = fusion_layer.call(sample_feature)
