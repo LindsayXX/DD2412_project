@@ -3,12 +3,26 @@ import tensorflow as tf
 import pathlib
 import numpy as np
 import matplotlib.pylab as plt
+from tensorflow_core.python.keras.models import Sequential
 
 BATCH_SIZE = 32
 IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 IMG_HEIGHT = 448
 IMG_WIDTH = 448
+
+
+class VGG_feature(layers.Layer):
+
+    def __init__(self):
+        super(VGG_feature, self).__init__()
+
+    def call(self):
+        base_model = tf.keras.applications.VGG19(input_shape=IMG_SHAPE,
+                                                 include_top=False,
+                                                 weights='imagenet')
+        feature_batch = base_model(image_batch)
+        return feature_batch
 
 class Kmeans(layers.Layer):
 
@@ -18,7 +32,7 @@ class Kmeans(layers.Layer):
         self.iterations = iterations
         self.total_channels = total_channels
 
-    def call(self, inputs):
+    def cluster(self, inputs):
         # center of the clusters
         centroids = tf.Variable(tf.slice(tf.random.shuffle(inputs), [0, 0], [self.clusters_n, -1]))
         # cluster assignment: points belong to each cluster
@@ -46,6 +60,49 @@ class Kmeans(layers.Layer):
 
         return assignments
 
+    def get_max_pixels(self, batch):
+        max_batch = []
+        for image_batch in batch:
+            max_pix = []
+            for channel in range(image_batch.shape[2]):
+                image = image_batch[:, :, channel]
+                maximum = tf.math.reduce_max(image)
+                x = tf.where(image == maximum)
+                if x.shape[0] == 1:
+                    max_pix.append(x)
+                else:
+                    # continue
+                    choice = tf.dtypes.cast(tf.random.uniform((1, 1), 0, x.shape[0]), tf.int32)[0][0]
+                    max_pix.append(tf.expand_dims(x[choice], 0))
+            max_pix = tf.stack(max_pix)
+            max_batch.append(max_pix)
+        max_batch = tf.stack(max_batch)
+        return max_batch
+
+    def call(self):
+        batch_cluster0 = []
+        batch_cluster1 = []
+        for m in range(max_points.shape[0]):
+            cluster0 = []
+            cluster1 = []
+            assign = self.cluster(max_points[m, :, 0, :])
+            for v in range(assign.shape[0]):
+                image = feature_batch[m, :, :, v]
+                if assign[v].numpy() == 0:
+                    cluster0.append(image)
+                    image = tf.zeros((14, 14))
+                    cluster1.append(image)
+                else:
+                    cluster1.append(image)
+                    image = tf.zeros((14, 14))
+                    cluster0.append(image)
+
+            cluster0 = tf.stack(cluster0)
+            cluster1 = tf.stack(cluster1)
+            batch_cluster0.append(cluster0)
+            batch_cluster1.append(cluster1)
+        return batch_cluster0, batch_cluster1
+
 class Average_Pooling(layers.Layer):
 
     def __init__(self):
@@ -65,127 +122,115 @@ class fc(layers.Layer):
     def __init__(self, input_shape):
         super(fc, self).__init__()
         self.initializer = tf.keras.initializers.glorot_normal()
-        self.fc1 = tf.keras.layers.Dense(input_shape, activation="relu", kernel_initializer=self.initializer)
+        self.fc1 = tf.keras.layers.Dense(input_shape, input_shape=(input_shape,), activation="relu", kernel_initializer=self.initializer)
         self.fc2 = tf.keras.layers.Dense(input_shape, activation="sigmoid", kernel_initializer=self.initializer)
+        self.bn = tf.keras.layers.BatchNormalization()
 
     def call(self, p_batch):
-        out = self.fc1(p_batch)
-        out = self.fc2(out)
-        a_batch = self.activation(out)
+        a_batch = []
+        for p in p_batch:
+            p = tf.expand_dims(p, 0)
+            out = self.fc1(p)
+            out = self.fc2(out)
+            a = self.bn(out)
+            a_batch.append(a)
+        a_batch = tf.squeeze(tf.stack(a_batch))
         return a_batch
 
 
-def get_max_pixels(batch):
-    max_batch = []
-    for image_batch in batch:
-        max_pix = []
-        for channel in range(image_batch.shape[2]):
-            image = image_batch[:,:,channel]*255
-            maximum = tf.math.reduce_max(image)
-            x = tf.where(image == maximum)
-            if x.shape[0]==1:
-                max_pix.append(x)
+class weighted_sum(layers.Layer):
+
+    def __init__(self):
+        super(weighted_sum, self).__init__()
+
+    def call(self, batch, a_batch):
+        attention_maps_batch = []
+        for b in range(batch.shape[0]):
+            image = tf.zeros((batch.shape[1], batch.shape[2]))
+            for c in range(batch.shape[-1]):
+                w_image = tf.multiply(batch[b, :, :, c], a_batch[b, c])
+                image += w_image
+            image /= tf.math.reduce_max(image)
+            attention_maps_batch.append(image)
+        attention_maps_batch = tf.stack(attention_maps_batch)
+        return attention_maps_batch
+
+
+class Database():
+
+    def __init__(self):
+        self.data_dir = pathlib.Path('/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/')
+        self.AUTOTUNE = tf.data.experimental.AUTOTUNE
+
+    def call(self):
+        list_ds = tf.data.Dataset.list_files(str(self.data_dir / '*/*'))
+        self.CLASS_NAMES = np.unique(
+            np.array([item.name for item in self.data_dir.glob('[!.]*') if item.name != "LICENSE.txt"]))
+
+        labeled_ds = list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
+
+        train_ds = self.prepare_for_training(labeled_ds)
+
+        image_batch, label_batch = next(iter(train_ds))
+
+        return image_batch, label_batch
+
+    def get_label(self, file_path):
+        # convert the path to a list of path components
+        parts = tf.strings.split(file_path, '/')
+        # The second to last is the class-directory
+        return parts[-2] == self.CLASS_NAMES
+
+    def decode_img(self, img):
+        # convert the compressed string to a 3D uint8 tensor
+        img = tf.image.decode_jpeg(img, channels=3)
+        # Use `convert_image_dtype` to convert to floats in the [0,1] range.
+        img = tf.image.convert_image_dtype(img, tf.float32)
+        # resize the image to the desired size.
+        return tf.image.resize(img, [IMG_WIDTH, IMG_HEIGHT])
+
+    def process_path(self, file_path):
+        label = self.get_label(file_path)
+        # load the raw data from the file as a string
+        img = tf.io.read_file(file_path)
+        img = self.decode_img(img)
+        return img, label
+
+    def prepare_for_training(self, ds, cache=True, shuffle_buffer_size=1000):
+        # This is a small dataset, only load it once, and keep it in memory.
+        # use `.cache(filename)` to cache preprocessing work for datasets that don't
+        # fit in memory.
+        if cache:
+            if isinstance(cache, str):
+                ds = ds.cache(cache)
             else:
-                #continue
-                choice = tf.dtypes.cast(tf.random.uniform((1,1), 0, x.shape[0]), tf.int32)[0][0]
-                max_pix.append(tf.expand_dims(x[choice], 0))
-        max_pix = tf.stack(max_pix)
-        max_batch.append(max_pix)
-    max_batch = tf.stack(max_batch)
-    return max_batch
+                ds = ds.cache()
 
-def get_label(file_path):
-    # convert the path to a list of path components
-    parts = tf.strings.split(file_path, '/')
-    # The second to last is the class-directory
-    return parts[-2] == CLASS_NAMES
+        ds = ds.shuffle(buffer_size=shuffle_buffer_size)
 
-def decode_img(img):
-    # convert the compressed string to a 3D uint8 tensor
-    img = tf.image.decode_jpeg(img, channels=3)
-    # Use `convert_image_dtype` to convert to floats in the [0,1] range.
-    img = tf.image.convert_image_dtype(img, tf.float32)
-    # resize the image to the desired size.
-    return tf.image.resize(img, [IMG_WIDTH, IMG_HEIGHT])
+        # Repeat forever
+        ds = ds.repeat()
 
-def process_path(file_path):
-    label = get_label(file_path)
-    # load the raw data from the file as a string
-    img = tf.io.read_file(file_path)
-    img = decode_img(img)
-    return img, label
+        ds = ds.batch(BATCH_SIZE)
 
-def prepare_for_training(ds, cache=True, shuffle_buffer_size=1000):
-    # This is a small dataset, only load it once, and keep it in memory.
-    # use `.cache(filename)` to cache preprocessing work for datasets that don't
-    # fit in memory.
-    if cache:
-        if isinstance(cache, str):
-            ds = ds.cache(cache)
-        else:
-            ds = ds.cache()
+        # `prefetch` lets the dataset fetch batches in the background while the model
+        # is training.
+        ds = ds.prefetch(buffer_size=self.AUTOTUNE)
 
-    ds = ds.shuffle(buffer_size=shuffle_buffer_size)
-
-    # Repeat forever
-    ds = ds.repeat()
-
-    ds = ds.batch(BATCH_SIZE)
-
-    # `prefetch` lets the dataset fetch batches in the background while the model
-    # is training.
-    ds = ds.prefetch(buffer_size=AUTOTUNE)
-
-    return ds
-
-
+        return ds
 
 if __name__ == '__main__':
-    data_dir = pathlib.Path('/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/')
-    list_ds = tf.data.Dataset.list_files(str(data_dir / '*/*'))
-    CLASS_NAMES = np.unique(np.array([item.name for item in data_dir.glob('[!.]*') if item.name != "LICENSE.txt"]))  # .split('.')[-1]
-
-    # Set `num_parallel_calls` so multiple images are loaded/processed in parallel.
-    AUTOTUNE = tf.data.experimental.AUTOTUNE
-    labeled_ds = list_ds.map(process_path, num_parallel_calls=AUTOTUNE)
-
-    train_ds = prepare_for_training(labeled_ds)
-
-    image_batch, label_batch = next(iter(train_ds))
+    data = Database()
+    image_batch, label_batch = data.call()
 
     # first, program the vgg19 pre-trained network
-    base_model = tf.keras.applications.VGG19(input_shape=IMG_SHAPE,
-                                                   include_top=False,
-                                                   weights='imagenet')
-    model = tf.keras.Model(inputs=base_model.input, outputs=base_model.get_layer('block3_pool').output)
 
-    feature_batch = base_model(image_batch)
-
-    max_points = get_max_pixels(feature_batch)
+    vgg_features = VGG_feature()
+    feature_batch = vgg_features.call()
 
     km = Kmeans(clusters_n=2, iterations=10)
-
-    batch_cluster0 = []
-    batch_cluster1 = []
-    for m in range(max_points.shape[0]):
-        cluster0 = []
-        cluster1 = []
-        assign = km.call(max_points[m, :, 0, :])
-        for v in range(assign.shape[0]):
-            image = np.array(feature_batch[m, :, :, v])
-            if assign[v].numpy() == 0:
-                cluster0.append(image)
-                image = tf.zeros((14, 14))
-                cluster1.append(image)
-            else:
-                cluster1.append(image)
-                image = tf.zeros((14, 14))
-                cluster0.append(image)
-
-        cluster0 = tf.stack(cluster0)
-        cluster1 = tf.stack(cluster1)
-        batch_cluster0.append(cluster0)
-        batch_cluster1.append(cluster1)
+    max_points = km.get_max_pixels(feature_batch)
+    batch_cluster0, batch_cluster1 = km.call()
 
     ap = Average_Pooling()
     p0 = ap.call(batch_cluster0)
@@ -195,6 +240,10 @@ if __name__ == '__main__':
     fc1 = fc(512)
     a0 = fc0.call(p0)
     a1 = fc1.call(p1)
+
+    ws = weighted_sum()
+    M0 = ws.call(feature_batch, a0)
+    M1 = ws.call(feature_batch, a1)
 
     print("hola")
     # for m in range(max_points.shape[0]):
@@ -214,3 +263,4 @@ if __name__ == '__main__':
     #     ax[0].imshow(image1)
     #     ax[1].imshow(image0)
     #     plt.show()
+    # with tf.GradientTape() as tape:
