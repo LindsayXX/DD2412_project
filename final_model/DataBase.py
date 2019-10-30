@@ -10,7 +10,7 @@ IMG_WIDTH = 448
 class Database():
 
     def __init__(self):
-        self.data_dir = pathlib.Path('/Users/stella/Downloads/CUB_200_2011/CUB_200_2011/images')
+        self.data_dir = pathlib.Path('/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images')
         self.AUTOTUNE = tf.data.experimental.AUTOTUNE
 
     def call(self):
@@ -20,11 +20,13 @@ class Database():
 
         labeled_ds = list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
 
-        train_ds = self.prepare_for_training(labeled_ds)
+        train_ds, val_ds, test_ds = self.prepare_for_training(labeled_ds)
 
-        image_batch, label_batch = next(iter(train_ds))
+        image_batch_train, label_batch_train = next(iter(train_ds))
+        image_batch_val, label_batch_val = next(iter(train_ds))
+        image_batch_test, label_batch_test = next(iter(train_ds))
 
-        return image_batch, label_batch
+        return image_batch_train, label_batch_train
 
     def get_label(self, file_path):
         # convert the path to a list of path components
@@ -57,19 +59,32 @@ class Database():
             else:
                 ds = ds.cache()
 
+        DATASET_SIZE = 11788 #ds.size(-1)
         ds = ds.shuffle(buffer_size=shuffle_buffer_size)
 
-        # Repeat forever
-        ds = ds.repeat()
+        train_size = int(0.7 * DATASET_SIZE)
+        val_size = int(0.15 * DATASET_SIZE)
+        test_size = int(0.15 * DATASET_SIZE)
 
-        ds = ds.batch(BATCH_SIZE)
+        train = ds.take(train_size)
+        val = ds.take(val_size)
+        test = ds.take(test_size)
+
+        # Repeat forever
+        train = train.repeat()
+        val = val.repeat()
+        test = test.repeat()
+
+        train = train.batch(BATCH_SIZE)
+        val = val.batch(BATCH_SIZE)
+        test = test.batch(BATCH_SIZE)
 
         # `prefetch` lets the dataset fetch batches in the background while the model
         # is training.
-        ds = ds.prefetch(buffer_size=self.AUTOTUNE)
-
-
-        return ds
+        train = train.prefetch(buffer_size=self.AUTOTUNE)
+        val = val.prefetch(buffer_size=self.AUTOTUNE)
+        test = test.prefetch(buffer_size=self.AUTOTUNE)
+        return train, val, test
 
 
 

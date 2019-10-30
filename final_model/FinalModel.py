@@ -19,7 +19,6 @@ BATCH_SIZE = 32
 
 class FinalModel(Model):
 
-
     def __init__(self):
         super(FinalModel, self).__init__()
 
@@ -36,26 +35,25 @@ class FinalModel(Model):
         self.crop = Crop()
         '''
         self.reshape224 = ReShape224()
-    
-    
+
         # joint feature learning subnet
         self.score = Scores()
 
-    def call(self,x):
+    def call(self, x):
 
         # MULTI ATTENTION SUBNET
         # x will be image_batch of shape (BATCH,448,448,3)
-        feature_map = self.vgg_features(x) # gives an output of shape (BATCH,14,14,512)
+        feature_map = self.vgg_features(x)  # gives an output of shape (BATCH,14,14,512)
         batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
 
-        p1 = self.average_pooling(batch_cluster0) # gives a list of length=batch_size containing tensors of shape (512,)
-        p2 = self.average_pooling(batch_cluster1) # gives a list of length=batch_size containing tensors of shape (512,)
+        p1 = self.average_pooling(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
+        p2 = self.average_pooling(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
 
-        a0 = self.fc(p1) # gives tensor of shape (BATCH,512)
-        a1 = self.fc(p2) # gives tensor of shape (BATCH,512)
+        a0 = self.fc(p1)  # gives tensor of shape (BATCH,512)
+        a1 = self.fc(p2)  # gives tensor of shape (BATCH,512)
 
-        m0 = self.weighted_sum(feature_map, a0) # gives tensor of shape (BATCH,14,14)
-        m1 = self.weighted_sum(feature_map, a1) # gives tensor of shape (BATCH,14,14)
+        m0 = self.weighted_sum(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
+        m1 = self.weighted_sum(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
 
         '''
         #CROPPING SUBNET

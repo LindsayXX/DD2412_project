@@ -26,14 +26,14 @@ class Scores(layers.Layer):
         w_init = tf.random_normal_initializer()
         self.W = tf.Variable(initial_value=w_init(shape=(512,semantic_size), dtype='float32'), trainable=True)
 
-    def call(self, thetas):
+    def call(self, thetas, phi):
         scores=[]
         for theta in thetas: #size of theta is (512,)
             out = tf.matmul(tf.transpose(tf.reshape(theta,[512,1])), self.W) #size of W is (512,28) and shape of out will be (1,28)
-            score = tf.matmul(out, tf.random.uniform([28,1], minval=0, maxval=15, dtype=tf.float32)) #shape of score is (1,1)
+            score = tf.matmul(out, phi) #shape of score is (1,1)
             scores.append(tf.reshape(score,[1])) # I am just reshaping it to get rid of one extra redundant dimension
-
-        return scores
+        scores = tf.stack(scores)
+        return scores, out
 
 
 

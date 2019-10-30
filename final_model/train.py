@@ -4,7 +4,7 @@ from tensorflow.keras.layers import Dense, Flatten, Conv2D
 from tensorflow.keras import Model
 from DataBase import Database
 from model import FinalModel
-from Losses import Loss
+from .LossesLosses import Loss
 
 
 # IMPORTING DATA
