@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from Multi_attention_subnet import VGG_feature,Kmeans, Average_Pooling, Fc, WeightedSum
 from Cropping_subnet import ReShape224, RCN, Crop
-from Joint_feature_learning_subnet import JFL
+from Joint_feature_learning_subnet import Scores
 from DataBase import Database
 
 
@@ -29,16 +29,17 @@ class FinalModel(Model):
         self.average_pooling = Average_Pooling()
         self.fc = Fc(CHANNELS)
         self.weighted_sum = WeightedSum()
-        
+
         '''
         # cropping net
         self.crop_net = RCN(hidden_unit=14, map_size=14, image_size=448)
         self.crop = Crop()
+        '''
+        self.reshape224 = ReShape224()
     
     
         # joint feature learning subnet
-        self.reshape224 = ReShape224()
-        '''
+        self.score = Scores()
 
     def call(self,x):
 
@@ -57,22 +58,57 @@ class FinalModel(Model):
         m1 = self.weighted_sum(feature_map, a1) # gives tensor of shape (BATCH,14,14)
 
         '''
-        
         #CROPPING SUBNET
         mask1 = self.crop_net(m0) #shape(BATCH,14,14)
         mask2 = self.crop_net(m1) #shape(BATCH,14,14)
-        crop1, newmask1 = self.crop(x,mask1) #of shape (BATCH,448,448,3)
-        crop2, newmask2 = self.crop(x,mask2) #of shape (BATCH,448,448,3)
+        croped0, newmask1 = self.crop(x,mask1) #of shape (BATCH,448,448,3)
+        croped1, newmask2 = self.crop(x,mask2) #of shape (BATCH,448,448,3)
+        gives 3 tensors of size (batch,448,448,3)
+        '''
 
         #JOINT FEATURE LEARNING SUBNET
-        in_image = ReShape224(x, [-1,224,224,3])
-        in_crop1 = ReShape224(crop1, [-1,224,224,3])
-        in_crop2 = ReShape224(crop2, [-1,224,224,3])
-        #from now on the batch size is dynamic
-        theta0 = self.average_pooling(in_image)
-        theta1 = self.average_pooling(in_crop1)
-        theta2 = self.average_pooling(in_crop2)
-        '''
+        #resizing the outputs of cropping network
+        full_image = ReShape224(x, [-1,224,224,3])
+        attended_part0 = ReShape224(croped0, [-1,224,224,3])
+        attended_part1 = ReShape224(croped1, [-1,224,224,3])
+        #from now on the batch size is dynamic!!
+
+        #feeding the 3 images into VGG nets
+        full_image     = self.vgg_features(full_image)
+        attended_part0 = self.vgg_features(attended_part0)
+        attended_part1 = self.vgg_features(attended_part1)
+
+        #creating thetas
+        global_theta = self.average_pooling(full_image)
+        local_theta0 = self.average_pooling(attended_part0)
+        local_theta1 = self.average_pooling(attended_part1)
+
+        #computing the scores
+        global_scores = self.score(global_theta)
+        local_scores0 = self.score(local_theta0)
+        local_scores1 = self.score(local_theta1)
+
+
+
+
+
+
+
+
+
+        #
+
+
+
+
+
+
+
+
+
+
+
+
 
         return m0,m1
 

@@ -142,6 +142,27 @@ class Average_Pooling(layers.Layer):
             p_batch.append(p)
         return p_batch
 
+class Average_Pooling_basemodel(layers.Layer):
+    '''
+    Args:
+        a list of  32(=batch_size) tensors of size (512,14,14)
+        a TENSOR of size (batch,14,14,512)
+    Returns:
+        a list of 32(=batch_size) tensors of size (512,)
+    '''
+
+    def __init__(self):
+        super( Average_Pooling_basemodel, self).__init__()
+
+    def call(self, cluster):
+        cluster = tf.unstack(cluster,axis=0)
+        p_batch = []
+        for b in cluster:
+            H, W = b.shape[0], b.shape[1]
+            p = tf.math.reduce_sum(b, axis=(0, 1))/(H*W)
+            p_batch.append(p)
+        return p_batch
+
 
 class Fc(layers.Layer):
     '''
@@ -197,52 +218,3 @@ class WeightedSum(layers.Layer):
         attention_maps_batch = tf.stack(attention_maps_batch)
         return attention_maps_batch
 
-
-
-'''
-if __name__ == '__main__':
-    data = Database()
-    image_batch, label_batch = data.call()
-
-    # first, program the vgg19 pre-trained network
-
-    vgg_features = VGG_feature()
-    feature_batch = vgg_features.call()
-
-    km = Kmeans(clusters_n=2, iterations=10)
-    max_points = km.get_max_pixels(feature_batch)
-    batch_cluster0, batch_cluster1 = km.call()
-
-    ap = Average_Pooling()
-    p0 = ap.call(batch_cluster0)
-    p1 = ap.call(batch_cluster1)
-
-    fc0 = fc(512)
-    fc1 = fc(512)
-    a0 = fc0.call(p0)
-    a1 = fc1.call(p1)
-
-    ws = weighted_sum()
-    M0 = ws.call(feature_batch, a0)
-    M1 = ws.call(feature_batch, a1)
-
-    print("hola")
-    # for m in range(max_points.shape[0]):
-    #     assign = km.call(max_points[m, :, 0, :])
-    #     image0 = np.zeros((14, 14))
-    #     image1 = np.zeros((14, 14))
-    #     for v in range(assign.shape[0]):
-    #
-    #         image = np.array(feature_batch[m, :, :, v])
-    #         if assign[v].numpy() == 1:
-    #             image1 += image
-    #         elif assign[v].numpy() == 0:
-    #             image0 += image
-    #     image1 /= np.max(image1)
-    #     image0 /= np.max(image0)
-    #     fig, ax = plt.subplots(1, 2)
-    #     ax[0].imshow(image1)
-    #     ax[1].imshow(image0)
-    #     plt.show()
-    # with tf.GradientTape() as tape:
-'''
