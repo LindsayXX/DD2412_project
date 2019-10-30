@@ -6,13 +6,20 @@ from tensorflow.keras import layers
 
 
 class ReShape224(layers.Layer):
+    """
+    This is used to resize full image and attended part-images generated from Cropping subnet
+    Args:
+        tensor of shape (32,448,448,3) which comes from Cropping subnet
+    Returns:
+        tensor of shape (dynamic_batch_size, 224,224,3).
+        (in order to resize the size of the batch becomes dynamic)
+    """
 
-    def __init__(self,input):
-        super(reshapes,self).__init__()
-        self.input = input
+    def __init__(self):
+        super(ReShape224,self).__init__()
 
     def call(self, input):
-        out = tf.reshape(self.input, [-1,224,224,3])
+        out = tf.image.resize(input, [224,224])
         return out
 
 
@@ -75,24 +82,3 @@ class Crop(layers.Layer):
 
         return crop_image, mask
 
-
-if __name__ == '__main__':
-    # test
-    batch_size = 3
-    sample_input = tf.random.normal([batch_size, 14, 14])
-
-    crop_net = RCN(hidden_unit=14, map_size=14, image_size=448)
-    mask = crop_net.call(sample_input, k=10)  # of shape (3,14,14)
-    sample_image = tf.random.normal([batch_size, 448, 448, 3])
-    crop_image, newmask = crop(sample_image, mask)
-
-
-    for i in range(batch_size):
-        plt.subplot(131)
-        plt.imshow(sample_image[i].numpy())
-        plt.subplot(132)
-        plt.imshow(newmask[i].numpy())
-        plt.subplot(133)
-        #plt.imshow(tf.multiply(sample_image[i], tf.ones(sample_image.shape))[0].numpy())
-        plt.imshow(crop_image[i].numpy())
-        plt.show()

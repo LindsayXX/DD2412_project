@@ -51,7 +51,7 @@ class Loss():
         return loss
 
     #@tf.function
-    def loss_CLS(self, label):
+    def loss_CLS(self, score, label):
         return tf.nn.softmax_cross_entropy_with_logits(score, label)
 
 
