@@ -54,7 +54,7 @@ class JFL(tf.keras.Model):
         score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
         softmax = self.fc(score)
 
-        return softmax, l2loss
+        return softmax #, l2loss
 
 
 #@tf.function
