@@ -16,7 +16,7 @@ class ReShape224(layers.Layer):
     """
 
     def __init__(self):
-        super(ReShape224,self).__init__()
+        super(ReShape224, self).__init__()
 
     def call(self, input):
         out = tf.image.resize(input, [224,224])

@@ -62,11 +62,11 @@ if __name__ == '__main__':
     database = Database()
     image_batch, label_batch = database.call()  # image batch is of shape(32,448,448,3) and label_batch is(32,200)
 
-    basemodel = BaseModel()
+    basemodel = BaseModel(200)
 
-    #global_scores = basemodel(image_batch)
+    #global_scores, out = basemodel(image_batch)
 
-    # it works :)
+
     EPOCHS = 5
 
     #train_loss = tf.keras.metrics.Mean(name='train_loss')
