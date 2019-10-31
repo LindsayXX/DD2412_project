@@ -123,8 +123,8 @@ class Kmeans(layers.Layer):
             cluster1 = cluster1.stack()
             batch_cluster0.write(m, cluster0)
             batch_cluster1.write(m, cluster1)
-        batch_cluster0 = batch_cluster0.stack()
-        batch_cluster1 = batch_cluster1.stack()
+        batch_cluster0 = tf.transpose(batch_cluster0.stack(), perm=[0, 2, 3, 1])
+        batch_cluster1 = tf.transpose(batch_cluster1.stack(), perm=[0, 2, 3, 1])
         return batch_cluster0, batch_cluster1
 
 
@@ -144,10 +144,11 @@ class Average_Pooling(layers.Layer):
         p_batch = tf.TensorArray(tf.float32, size=n_cluster)
         for i in range(n_cluster):
             b = cluster[i, :, :, :]
-            H, W = b.shape[1], b.shape[2]
-            p = tf.math.reduce_sum(b, axis=(1, 2))/(H*W)
+            H, W = b.shape[0], b.shape[1]
+            p = tf.math.reduce_sum(b, axis=(0, 1))/(H*W)
             p_batch.write(i, p)
         p_batch = p_batch.stack()
+        print("p_batch shape {}".format(p_batch.shape))
         return p_batch
 
 class Average_Pooling_basemodel(layers.Layer):

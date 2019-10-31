@@ -24,22 +24,30 @@ class Scores(layers.Layer):
     def __init__(self):
         super(Scores, self).__init__()
         w_init = tf.random_normal_initializer()
-        self.W = tf.Variable(initial_value=w_init(shape=(512,semantic_size), dtype='float32'), trainable=True)
+        self.W = tf.Variable(initial_value=w_init(shape=(512, semantic_size), dtype='float32'), trainable=True)
 
     def call(self, thetas, phi):
-        scores = []
-        for theta in thetas: #size of theta is (512,)
-            out = tf.matmul(tf.transpose(tf.reshape(theta,[512,1])), self.W) #size of W is (512,28) and shape of out will be (1,28)
-            score = tf.matmul(out, phi) #shape of score is (1,1)
-            scores.append(tf.reshape(score,[1])) # I am just reshaping it to get rid of one extra redundant dimension
-        scores = tf.stack(scores)
-        return scores, out
+        n_theta = thetas.shape[0]
+        scores_samples = tf.TensorArray(tf.float32, size=n_theta)
+        phi_samples = tf.TensorArray(tf.float32, size=n_theta)
+        for i in range(n_theta):  # size of theta is (512,)
+            theta = thetas[i]
+            out = tf.matmul(tf.transpose(tf.reshape(theta,[512,1])), self.W)  # size of W is (512,28) and shape of out will be (1,28)
+            score = tf.matmul(out, phi)  # shape of score is (1,1)
+            phi_samples.write(i, out)
+            scores_samples.write(i, tf.reshape(score, [1]))  # I am just reshaping it to get rid of one extra redundant dimension
+        scores_samples = scores_samples.stack()
+        phi_samples = phi_samples.stack()
+        return scores_samples, phi_samples
 
 
 
+if __name__ == '__main__':
+    theta = tf.random.uniform((1, 512), minval=0, maxval=1, dtype=tf.float32)
+    phi = tf.random.uniform((1, 200), minval=0, maxval=1, dtype=tf.float32)
 
-
-
+    s = Scores()
+    s.call(theta, phi)
 
 
 
