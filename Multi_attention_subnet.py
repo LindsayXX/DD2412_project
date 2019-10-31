@@ -145,21 +145,20 @@ class Average_Pooling(layers.Layer):
 class Average_Pooling_basemodel(layers.Layer):
     '''
     Args:
-        a list of  32(=batch_size) tensors of size (512,14,14)
-        a TENSOR of size (batch,14,14,512)
+        a TENSOR of size (batch,7,7,512)
     Returns:
-        a list of 32(=batch_size) tensors of size (512,)
+        a list of tensors of size (512,)
     '''
 
     def __init__(self):
         super( Average_Pooling_basemodel, self).__init__()
 
     def call(self, cluster):
-        cluster = tf.unstack(cluster,axis=0)
+        cluster = tf.unstack(cluster, axis=0)
         p_batch = []
         for b in cluster:
             H, W = b.shape[0], b.shape[1]
-            p = tf.math.reduce_sum(b, axis=(0, 1))/(H*W)
+            p = tf.math.reduce_sum(b, axis=(0, 1)) / (H * W)
             p_batch.append(p)
         return p_batch
 
@@ -218,3 +217,21 @@ class WeightedSum(layers.Layer):
         attention_maps_batch = tf.stack(attention_maps_batch)
         return attention_maps_batch
 
+
+'''
+previous average pooling basemodel για να δουλευει με τενσορς
+class Average_Pooling_basemodel(layers.Layer):
+    
+    Args:
+        a TENSOR of size (batch,7,7,512)
+    Returns:
+        a tensor of size (32,512)
+    
+
+    def __init__(self):
+        super( Average_Pooling_basemodel, self).__init__()
+
+    def call(self, features):
+        H = features.get_shape()[1]
+        W = features.get_shape()[2]
+        return tf.math.reduce_sum(features, axis=(1,2))/(H*W)'''
