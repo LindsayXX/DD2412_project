@@ -172,7 +172,6 @@ class Average_Pooling_basemodel(layers.Layer):
             p_batch.append(p)
         return p_batch
 
-
 class Fc(layers.Layer):
     '''
 

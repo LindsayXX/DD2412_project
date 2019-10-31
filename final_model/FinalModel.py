@@ -6,6 +6,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import SGD
 import matplotlib.pyplot as plt
 import numpy as np
+
+from Classification import Classifier
 from Multi_attention_subnet import VGG_feature,Kmeans, Average_Pooling, Fc, WeightedSum
 from Cropping_subnet import ReShape224, RCN, Crop
 from Joint_feature_learning_subnet import Scores
@@ -58,6 +60,8 @@ class FinalModel(Model):
         self.global_score = Scores()
         self.score0 = Scores()
         self.score1 = Scores()
+
+        self.classifier = Classifier()
 
     def call(self, x):
 
@@ -119,8 +123,7 @@ class FinalModel(Model):
         local_theta1 = self.average_pooling_local1(attended_part1)
 
         #computing the scores
-        print("SCORES")
-        print(global_theta.shape)
+        print("Computing Scores...")
         phi = None
         global_scores = self.global_score(global_theta, phi)
         local_scores0 = self.score0(local_theta0, phi)
@@ -131,7 +134,10 @@ class FinalModel(Model):
         scores_out.write(2, local_scores1)
         scores_out = scores_out.stack()
 
-        return m0, m1, attmap_out, crop_out, scores_out, None, None, N_CLASSES, BATCH_SIZE
+        print(scores_out.shape)
+        predictions = self.classifier(scores_out)
+
+        return m0, m1, attmap_out, crop_out, scores_out, None, predictions, N_CLASSES, BATCH_SIZE
 
 
 @tf.function

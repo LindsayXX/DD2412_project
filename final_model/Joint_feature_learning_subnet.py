@@ -41,7 +41,6 @@ class Scores(layers.Layer):
         return scores_samples, phi_samples
 
 
-
 if __name__ == '__main__':
     theta = tf.random.uniform((1, 512), minval=0, maxval=1, dtype=tf.float32)
     phi = tf.random.uniform((1, 200), minval=0, maxval=1, dtype=tf.float32)

@@ -23,7 +23,7 @@ class JFL(tf.keras.Model):
         self.embedding = tf.keras.layers.Embedding(self.n, n_classes)#input: class label, embedding_size=semantic_size
         self.W = tf.keras.layers.Dense(self.n, activation="relu")# input_shape=(feature_size))
         self.l2loss = tf.keras.layers.Lambda(lambda x: tf.keras.backend.sum(tf.keras.backend.square(x[0] - x[1][:, 0]), 1, keepdims=True))
-        self.fc = tf.keras.layers.Dense(n_classes)
+        self.fc = tf.keras.layers.Dense(n_classes, activation="softmax")
 
 
     def call(self, thetas, phi):
@@ -52,9 +52,9 @@ class JFL(tf.keras.Model):
         # "normalize each descriptor independently, and concatenate them together into
         #  fully-connected fusion layer with softmax function for the final classification. "
         score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
-        softmax = self.fc(score)
+        out = self.fc(score)
 
-        return softmax #, l2loss
+        return score, l2loss, out
 
 
 #@tf.function
