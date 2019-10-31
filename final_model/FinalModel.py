@@ -27,7 +27,7 @@ class FinalModel(Model):
 
         # MULTI ATTENTION SUBNET
         self.vgg_features_initial = VGG_feature()
-        self.kmeans = Kmeans(clusters_n=2, iterations = 10)
+        self.kmeans = Kmeans(clusters_n=2, iterations=10)
         self.average_pooling_0 = Average_Pooling()
         self.average_pooling_1 = Average_Pooling()
         self.fc_0 = Fc(CHANNELS)
@@ -61,21 +61,26 @@ class FinalModel(Model):
 
     def call(self, x):
 
-        # MULTI ATTENTION SUBNET
-        # x will be image_batch of shape (BATCH,448,448,3)
-        feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
-        batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
+        # # MULTI ATTENTION SUBNET
+        # # x will be image_batch of shape (BATCH,448,448,3)
+        # print("VGG")
+        # feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
+        # print(feature_map.shape)
+        # print("KMEANS")
+        # batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
+        # print("AVR POOL")
+        # p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
+        # p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
+        # print("FC")
+        # a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
+        # a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
+        # print("WS")
+        # m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
+        # m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
 
-        p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
-        p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
-
-        a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
-        a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
-
-        m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
-        m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
-
-
+        m0 = tf.convert_to_tensor(np.load("im0.npy"))
+        m1 = tf.convert_to_tensor(np.load("im1.npy"))
+        print("CROP")
         #CROPPING SUBNET
         mask1 = self.crop_net0(m0) #shape(BATCH,14,14)
         mask2 = self.crop_net1(m1) #shape(BATCH,14,14)
@@ -83,31 +88,32 @@ class FinalModel(Model):
         croped1, newmask2 = self.crop1(x, mask2) #of shape (BATCH,448,448,3)
         #gives 3 tensors of size (batch,448,448,3)
 
-
+        print("RESHAPE")
         #JOINT FEATURE LEARNING SUBNE
         #resizing the outputs of cropping network
         full_image = self.reshape_global(x)
         attended_part0 = self.reshape_local0(croped0)
         attended_part1 = self.reshape_local1(croped1)
 
-
+        print("VGG")
         #feeding the 3 images into VGG nets
         full_image     = self.vgg_features_global(full_image)
         attended_part0 = self.vgg_features_local0(attended_part0)
         attended_part1 = self.vgg_features_local1(attended_part1)
 
+        print("THETAS")
         #creating thetas
         global_theta = self.average_pooling_global(full_image)
         local_theta0 = self.average_pooling_local0(attended_part0)
         local_theta1 = self.average_pooling_local1(attended_part1)
 
         #computing the scores
-        global_scores = self.global_score(global_theta)
-        local_scores0 = self.score0(local_theta0)
-        local_scores1 = self.score1(local_theta1)
+        phi = None
+        global_scores = self.global_score(global_theta, phi)
+        local_scores0 = self.score0(local_theta0, phi)
+        local_scores1 = self.score1(local_theta1, phi)
 
-
-        return m0, m1, [m0, m1], [m0, m1], [global_scores , local_scores0, local_scores1], None, None, 200, 32
+        return m0, m1, [m0, m1], [croped0, croped1], [None , None, None], None, None, 200, 32
 
 
 @tf.function
@@ -121,7 +127,7 @@ def train_step(model, image_batch, loss_fun, opt_fun):
     return loss
 
 # test the model
-@tf.function
+#@tf.function
 def test_step(model, images, loss_fun):
     m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size = model(images)
     loss = loss_fun(m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size)
@@ -135,17 +141,17 @@ if __name__ == '__main__':
     image_batch, label_batch = database.call()
     #image batch is of shape(32,448,448,3) and label_batch is(32,200)
     modelaki = FinalModel()
-    m0, m1 = modelaki.call(image_batch)
+    #m0, m1 = modelaki.call(image_batch)
     
     EPOCHS = 5
 
     #train_loss = tf.keras.metrics.Mean(name='train_loss')
 
     for epoch in range(EPOCHS):
-        loss_fun = Loss.final_loss
+        loss_fun = Loss().final_loss
         opt_fun = opt.Adam()
-        for images, labels in zip(image_batch, label_batch):
-            train_loss = train_step(modelaki, images, loss_fun, opt_fun)
+        #for images, labels in zip(image_batch, label_batch):
+        train_loss = train_step(modelaki, image_batch, loss_fun, opt_fun)
 
         # for test_images, test_labels in test_ds:
         #    test_step(test_images, test_labels)

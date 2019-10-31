@@ -27,7 +27,7 @@ class Scores(layers.Layer):
         self.W = tf.Variable(initial_value=w_init(shape=(512,semantic_size), dtype='float32'), trainable=True)
 
     def call(self, thetas, phi):
-        scores=[]
+        scores = []
         for theta in thetas: #size of theta is (512,)
             out = tf.matmul(tf.transpose(tf.reshape(theta,[512,1])), self.W) #size of W is (512,28) and shape of out will be (1,28)
             score = tf.matmul(out, phi) #shape of score is (1,1)
