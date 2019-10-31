@@ -2,8 +2,6 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Activation, GlobalAveragePooling2D
 from tensorflow.keras import Model
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.optimizers import SGD
 import matplotlib.pyplot as plt
 import numpy as np
 from Multi_attention_subnet import VGG_feature, Kmeans, Average_Pooling, Fc, WeightedSum, Average_Pooling_basemodel
@@ -16,7 +14,6 @@ import os
 
 
 # IMG_SIZE = 448
-CHANNELS = 512
 BATCH_SIZE = 32
 
 
@@ -28,17 +25,16 @@ class BaseModel(Model):
         self.vgg_features = VGG_feature()
         self.average_pooling = Average_Pooling_basemodel()
         self.score = Scores()
-        #self.fc = Fc(CHANNELS)
-        self.fc = Dense(n_class, activation="softmax")#, input_shape=(1,28))
+        #self.fc = Dense(n_class, activation="softmax")#, input_shape=(1,28))
 
     def call(self, x, phi):
         resized = self.reshape224(x)  # δίνει (32,224,224,3)
         features = self.vgg_features(resized)  # δίνει (32,7,7,512)
         global_theta = self.average_pooling(features)  # tensor of shape (32,512)
         global_scores, out = self.score(global_theta, phi)
-        out = self.fc(out)  #prediction (batch_size, 200)
+        #out = self.fc(out)  #prediction (batch_size, 200)
 
-        return global_scores, out
+        return global_scores#, out
 
 
 # test the model
@@ -76,15 +72,10 @@ if __name__ == '__main__':
     #train_loss = tf.keras.metrics.Mean(name='train_loss')
 
     for epoch in range(EPOCHS):
-
         loss_fun = Loss().loss_CLS
-        opt_fun = opt.Adam()
+        opt_fun = opt.SGD(lr=0.05)
         #for images, labels in zip(image_batch, label_batch):
         train_loss = train_step(basemodel, image_batch, label_batch, loss_fun, opt_fun)
-
-        # for test_images, test_labels in test_ds:
-        #    test_step(test_images, test_labels)
-
         template = 'Epoch {}, Loss: {}'
         print(template.format(epoch + 1, train_loss))
 
@@ -94,5 +85,7 @@ if __name__ == '__main__':
         #test_loss.reset_states()
         #test_accuracy.reset_states()
 
+# for test_images, test_labels in test_ds:
+#    test_step(test_images, test_labels)
 # TODO: pre-train vgg only on birds
 # TODO: global variables of this module may differ from the subnetworks module.

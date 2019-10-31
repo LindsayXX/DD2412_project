@@ -61,6 +61,8 @@ class Loss():
         return tf.reduce_mean(loss)
 
     def loss_baseline(self, score, labels):
+        # scores:  batch_size*200*1
+        # labels: batch_size * 1
         return tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels, score))
 
     def final_loss(self, m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size=32):
