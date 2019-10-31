@@ -31,7 +31,7 @@ class DataSet():
         if GPU:
             n = len(index)
         else:
-            n = 500
+            n = 50
         if train:
             phi = self.get_phi(index)# Φ, semantic matrix, 28*200
             labels = self.get_label(n, index, set=0)
@@ -41,7 +41,7 @@ class DataSet():
             images = self.get_image(n, index, set=1)
             phi = self.get_semantic(n, index, set=1) # φ, semantic features 28, n
 
-        ds = tf.data.Dataset.from_tensor_slices((np.asarray(images), np.asarray(labels))).shuffle(1000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        ds = tf.data.Dataset.from_tensor_slices((images, np.asarray(labels))).shuffle(1000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return ds, tf.convert_to_tensor(phi, dtype=tf.float32)
 
@@ -65,6 +65,13 @@ class DataSet():
 
         return label_new
 
+    def decode_img(self,img):
+        # convert the compressed string to a 3D uint8 tensor
+        img = tf.image.decode_jpeg(img, channels=3)
+        # Use `convert_image_dtype` to convert to floats in the [0,1] range.
+        img = tf.image.convert_image_dtype(img, tf.float32)
+        # resize the image to the desired size.
+        return tf.image.resize(img, [IMG_WIDTH, IMG_HEIGHT])
 
     def get_image(self, n, index, set=0):# discard
         images_names = open(self.image_name_path, "r")
@@ -74,9 +81,9 @@ class DataSet():
         for i in tqdm(range(n)):
             if index[i] == set:
                 im_path = self.image_path + images[i].split(' ')[1].split('\n')[0]
-                img = np.asarray(Image.open(im_path).resize((IMG_WIDTH, IMG_HEIGHT)), dtype=np.float32)
-                #img = tf.io.read_file(im_path)
-                #img = self.decode_img(img)
+                #img = np.asarray(Image.open(im_path).resize((IMG_WIDTH, IMG_HEIGHT)), dtype=np.float32)
+                img = tf.io.read_file(im_path)
+                img = self.decode_img(img)
                 # image = tf.keras.preprocessing.image.load_img(im_path, target_size=(IMG_WIDTH, IMG_HEIGHT))
                 image_new.append(img)
             else:
@@ -174,13 +181,11 @@ if __name__=="__main__":
     path_root = os.path.abspath(os.path.dirname(__file__))
     bird_data = DataSet(path_root)
     train_ds, phi = bird_data.load(GPU=False, train=True, batch_size=32) # "oxford_flowers102"
-    test_ds, useless_semantic = bird_data.load(GPU=False, train=False, batch_size=32)
-    image, label, semantic = next(iter(train_ds))
+    #test_ds, useless_semantic = bird_data.load(GPU=False, train=False, batch_size=32)
+    image, label = next(iter(train_ds))
     # check
     for i in range(3):
-        im, lab, sem = image[i], label[i], semantic[i]
-        # im = K.eval(im)
-        im = Image.fromarray(np.uint8(im))
-        plt.imshow(im)
+        im, lab = image[i], label[i]
+        plt.imshow(im.numpy().astype(np.float32))
         plt.show()
         print("Label: %d" % lab)
