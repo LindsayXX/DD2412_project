@@ -10,7 +10,7 @@ IMG_WIDTH = 448
 class Database():
 
     def __init__(self):
-        self.data_dir = pathlib.Path('/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images')
+        self.data_dir = pathlib.Path('/Users/stella/Downloads/CUB_200_2011/CUB_200_2011/images')
         self.AUTOTUNE = tf.data.experimental.AUTOTUNE
 
     def call(self):
