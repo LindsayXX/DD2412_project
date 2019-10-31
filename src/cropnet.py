@@ -56,7 +56,7 @@ def crop(image, mask, batch_size=32):
     mask = tf.expand_dims(mask, -1)
     mask = tf.broadcast_to(mask, [mask.shape[0], mask.shape[1], mask.shape[2], 3])
     mask = tf.image.resize(mask, size=[image.shape[1], image.shape[2]])
-    tf.multiply(image, mask)
+    crop_image = tf.multiply(image, mask)
 
     return crop_image, mask
 

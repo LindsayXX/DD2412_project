@@ -52,7 +52,7 @@ class JFL(tf.keras.Model):
         # "normalize each descriptor independently, and concatenate them together into
         #  fully-connected fusion layer with softmax function for the final classification. "
         score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
-        out = self.fc(score)
+        out = self.fc(out)
 
         return score, l2loss, out
 
@@ -92,7 +92,6 @@ def CCT_loss(y_true, y_pred, n_classes, margin=0.8):
 # @tf.funcion
 def CLS(score, label):
     return tf.nn.softmax_cross_entropy_with_logits(score, label)
-
 
 
 if __name__ == '__main__':
