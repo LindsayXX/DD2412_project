@@ -6,6 +6,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import SGD
 import matplotlib.pyplot as plt
 import numpy as np
+
+from Classification import Classifier
 from Multi_attention_subnet import VGG_feature,Kmeans, Average_Pooling, Fc, WeightedSum
 from Cropping_subnet import ReShape224, RCN, Crop
 from Joint_feature_learning_subnet import Scores
@@ -18,7 +20,7 @@ from Losses import Loss
 #IMG_SIZE = 448
 CHANNELS = 512
 BATCH_SIZE = 32
-
+N_CLASSES = 200
 
 class FinalModel(Model):
 
@@ -59,16 +61,19 @@ class FinalModel(Model):
         self.score0 = Scores()
         self.score1 = Scores()
 
+        self.classifier = Classifier()
+
     def call(self, x):
 
-        # # MULTI ATTENTION SUBNET
-        # # x will be image_batch of shape (BATCH,448,448,3)
+        # MULTI ATTENTION SUBNET
+        # x will be image_batch of shape (BATCH,448,448,3)
         # print("VGG")
         # feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
         # print(feature_map.shape)
         # print("KMEANS")
         # batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
         # print("AVR POOL")
+        # print(batch_cluster0.shape, batch_cluster1.shape)
         # p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
         # p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
         # print("FC")
@@ -80,12 +85,21 @@ class FinalModel(Model):
 
         m0 = tf.convert_to_tensor(np.load("im0.npy"))
         m1 = tf.convert_to_tensor(np.load("im1.npy"))
+        attmap_out = tf.TensorArray(tf.float32, 2)
+        attmap_out.write(0, m0)
+        attmap_out.write(1, m1)
+        attmap_out = attmap_out.stack()
+
         print("CROP")
         #CROPPING SUBNET
         mask1 = self.crop_net0(m0) #shape(BATCH,14,14)
         mask2 = self.crop_net1(m1) #shape(BATCH,14,14)
         croped0, newmask1 = self.crop0(x, mask1) #of shape (BATCH,448,448,3)
         croped1, newmask2 = self.crop1(x, mask2) #of shape (BATCH,448,448,3)
+        crop_out = tf.TensorArray(tf.float32, size=2)
+        crop_out.white(0, croped0)
+        crop_out.white(1, croped1)
+        crop_out = crop_out.stack()
         #gives 3 tensors of size (batch,448,448,3)
 
         print("RESHAPE")
@@ -100,6 +114,7 @@ class FinalModel(Model):
         full_image     = self.vgg_features_global(full_image)
         attended_part0 = self.vgg_features_local0(attended_part0)
         attended_part1 = self.vgg_features_local1(attended_part1)
+        print(full_image.shape, attended_part0.shape, attended_part1.shape)
 
         print("THETAS")
         #creating thetas
@@ -108,12 +123,21 @@ class FinalModel(Model):
         local_theta1 = self.average_pooling_local1(attended_part1)
 
         #computing the scores
+        print("Computing Scores...")
         phi = None
         global_scores = self.global_score(global_theta, phi)
         local_scores0 = self.score0(local_theta0, phi)
         local_scores1 = self.score1(local_theta1, phi)
+        scores_out = tf.TensorArray(tf.float32, 3)
+        scores_out.write(0, global_scores)
+        scores_out.write(1, local_scores0)
+        scores_out.write(2, local_scores1)
+        scores_out = scores_out.stack()
 
-        return m0, m1, [m0, m1], [croped0, croped1], [None , None, None], None, None, 200, 32
+        print(scores_out.shape)
+        predictions = self.classifier(scores_out)
+
+        return m0, m1, attmap_out, crop_out, scores_out, None, predictions, N_CLASSES, BATCH_SIZE
 
 
 @tf.function
