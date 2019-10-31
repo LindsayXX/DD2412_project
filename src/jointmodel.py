@@ -52,7 +52,7 @@ class JFL(tf.keras.Model):
         # "normalize each descriptor independently, and concatenate them together into
         #  fully-connected fusion layer with softmax function for the final classification. "
         score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
-        softmax = self.fc(score)
+        softmax = self.fc(out)
 
         return softmax #, l2loss
 
