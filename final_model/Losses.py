@@ -15,7 +15,7 @@ class Loss():
     # @tf.function
     def loss_DIV(self, m_i, m_k):
 
-        m_k_tilt = tf.math.maximum(m_k - self.margin, 0)
+        m_k_tilt = tf.math.maximum(m_k - self.margin_div, 0)
         return tf.tensordot(tf.reshape(m_i,[-1]), tf.reshape(m_k_tilt, [-1]), 1)
 
     # @tf.function
@@ -65,7 +65,11 @@ class Loss():
         tf.nn.softmax_cross_entropy_with_logits(score, labels)
 
     def final_loss(self, m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size=32):
-        return self.loss_DIV(m_i, m_k) + self.loss_CPT(map_att, gtmap, batch_size) + self.loss_CLS(score) + self.loss_CCT(y_true, y_pred, n_classes)
+        div = self.loss_DIV(m_i, m_k)
+        cpt = self.loss_CPT(map_att, gtmap, batch_size)
+        cls = self.loss_CLS(score)
+        cct = self.loss_CCT(y_true, y_pred, n_classes)
+        return div + cpt + cls + cct
 
 
 
