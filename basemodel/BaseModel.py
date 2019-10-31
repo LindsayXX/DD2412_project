@@ -10,9 +10,9 @@ from Multi_attention_subnet import VGG_feature, Kmeans, Average_Pooling, Fc, Wei
 from Cropping_subnet import ReShape224
 from Joint_feature_learning_subnet import Scores
 import tensorflow.keras.optimizers as opt
-from DataBase import Database
+from dataloader import DataSet
 from Losses import Loss
-
+import os
 
 
 # IMG_SIZE = 448
@@ -29,17 +29,16 @@ class BaseModel(Model):
         self.average_pooling = Average_Pooling_basemodel()
         self.score = Scores()
         #self.fc = Fc(CHANNELS)
-        self.fc = Dense(n_class, input_shape=(1,28))
+        self.fc = Dense(n_class, activation="softmax")#, input_shape=(1,28))
 
-
-    def call(self, x):
+    def call(self, x, phi):
         resized = self.reshape224(x)  # δίνει (32,224,224,3)
         features = self.vgg_features(resized)  # δίνει (32,7,7,512)
         global_theta = self.average_pooling(features)  # tensor of shape (32,512)
-        global_scores, out = self.score(global_theta, tf.random.uniform([28,1], minval=0, maxval=15, dtype=tf.float32))
-        out = self.fc(out)  #out is (1,28)
-        return global_scores, out
+        global_scores, out = self.score(global_theta, phi)
+        out = self.fc(out)  #prediction (batch_size, 200)
 
+        return global_scores, out
 
 
 # test the model
@@ -61,12 +60,15 @@ def train_step(model, image_batch, loss_fun, opt_fun):
     return loss
 
 if __name__ == '__main__':
-    database = Database()
-    image_batch, label_batch = database.call()  # image batch is of shape(32,448,448,3) and label_batch is(32,200)
+    path_root = os.path.abspath(os.path.dirname(__file__))
+    bird_data = DataSet(path_root)
+    train_ds, phi = bird_data.load(GPU=False, train=True, batch_size=32)
+    test_ds, useless_semantic = bird_data.load(GPU=False, train=False, batch_size=32)
+    image_batch, label_batch = next(iter(train_ds))
 
     basemodel = BaseModel(200)
 
-    global_scores, out = basemodel(image_batch)
+    global_scores, out = basemodel(image_batch)#, phi)
     # sizes (32,1),(1,200)
 
     EPOCHS = 5
@@ -78,7 +80,7 @@ if __name__ == '__main__':
         loss_fun = Loss().loss_CLS
         opt_fun = opt.Adam()
         #for images, labels in zip(image_batch, label_batch):
-        train_loss = train_step(basemodel, image_batch, loss_fun, opt_fun)
+        train_loss = train_step(basemodel, image_batch, label_batch, loss_fun, opt_fun)
 
         # for test_images, test_labels in test_ds:
         #    test_step(test_images, test_labels)

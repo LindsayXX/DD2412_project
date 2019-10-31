@@ -1,10 +1,7 @@
 import numpy as np
 import tensorflow as tf
-from DataBase import Database
-
-
+#from DataBase import Database
 #from BaseModel import BaseModel
-
 
 class Loss():
 
@@ -64,7 +61,7 @@ class Loss():
         return tf.reduce_mean(loss)
 
     def loss_baseline(self, score, labels):
-        tf.nn.softmax_cross_entropy_with_logits(score, labels)
+        return tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels, score))
 
     def final_loss(self, m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size=32):
         return self.loss_DIV(m_i, m_k) + self.loss_CPT(map_att, gtmap, batch_size) + self.loss_CLS(score) + self.loss_CCT(y_true, y_pred, n_classes)
