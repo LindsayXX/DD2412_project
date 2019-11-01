@@ -1,5 +1,6 @@
 import tensorflow as tf
 from dataloader import DataSet
+import os
 
 IMG_SIZE = 448
 BATCH_SIZE = 32
@@ -46,75 +47,67 @@ def loss_baseline(score, labels):
     return tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=score))
 
 
-def
+@tf.function
+def test_step(images, labels):
+    scores = model(images, phi)
+    t_loss = loss_baseline(scores, labels)
+    t_pred = tf.math.argmax(scores, axis=1)
+
+    test_loss(t_loss)
+    test_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(t_pred, -1))
+
+
+@tf.function
+def train_step(images, labels):
+    with tf.GradientTape() as tape:
+        scores = model(images, phi)
+        loss = loss_baseline(scores, labels)
+    gradients = tape.gradient(loss, model.trainable_variables)  # ti einai trainable variables?
+    # print(gradients)
+    opt.apply_gradients(zip(gradients, model.trainable_variables))
+    y_pred = tf.math.argmax(scores, axis=1)
+
+    train_loss(loss)
+    train_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(y_pred, -1))
 
 
 if __name__ == '__main__':
     # tf.compat.v1.enable_eager_execution()
-    path_root = '/content/gdrive/My Drive/data'  # os.path.abspath(os.path.dirname(__file__))
+    path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
     bird_data = DataSet(path_root)
-    train_ds, phi = bird_data.load(GPU=False, train=True, batch_size=32)
-    test_ds, useless_semantic = bird_data.load(GPU=False, train=False, batch_size=32)
+    train_ds, phi = bird_data.load(GPU=True, train=True, batch_size=32)
+    test_ds, useless_semantic = bird_data.load(GPU=True, train=False, batch_size=32)
     # image_batch, label_batch = next(iter(train_ds))
 
     model = BaseModel(200, 28)
     opt = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)  # or SGDW with weight decay
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=model)
-    manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=3)
+    manager = tf.train.CheckpointManager(ckpt, path_root + '/tf_ckpts',
+                                         max_to_keep=3)  # keep only the three most recent checkpoints
+    ckpt.restore(manager.latest_checkpoint)  # pickup training from where you left off
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
     train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
     test_loss = tf.keras.metrics.Mean(name='test_loss')
     test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
 
-
-    @tf.function
-    def test_step(images, labels):
-        scores = model(images, phi)
-        t_loss = loss_baseline(scores, labels)
-        t_pred = tf.argmax(scores)
-
-        test_loss(t_loss)
-        # test_accuracy(labels, t_pred)
-        return t_loss, t_pred
-
-
-    @tf.function
-    def train_step(images, labels):
-        with tf.GradientTape() as tape:
-            scores = model(images, phi)
-            loss = loss_baseline(scores, labels)
-        gradients = tape.gradient(loss, model.trainable_variables)  # ti einai trainable variables?
-        # print(gradients)
-        opt.apply_gradients(zip(gradients, model.trainable_variables))
-        y_pred = tf.argmax(scores)
-        # print(y_pred.shape)
-
-        # return loss, y_pred
-        train_loss(loss)
-        # train_accuracy(labels, y_pred)
-
-
     train_loss_results = []
     train_accuracy_results = []
     EPOCHS = 30
+    CHECKEPOCHS = 1
     for epoch in range(EPOCHS):
         for images, labels in train_ds:
             train_step(images, labels)
 
+        for test_images, test_labels in test_ds:
+            test_step(test_images, test_labels)
+
+        #tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}%\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
+
         ckpt.step.assign_add(1)
-        if int(ckpt.step) % 10 == 0:
+        if int(ckpt.step) % CHECKEPOCHS == 0:
             save_path = manager.save()
-            print("Saved checkpoint for epoch {}: {}".format(epoch), save_path)
-            print("loss {:1.2f}".format(loss.numpy()))
-        # for test_images, test_labels in test_ds:
-        # test_step(test_images, test_labels)
-
-        # template = 'Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}'
-        # print(template.format(epoch+1, train_loss.result(), train_accuracy.result()*100, test_loss.result(), test_accuracy.result()*100))
-        #tf.print('Epoch {}, train_Loss: {}'.format(epoch + 1, train_loss.result()))
-        with open('/log.txt', 'a') as temp:
-            temp.write('Epoch {}, train_Loss: {}%\n'.format(epoch + 1, train_loss.result()))
-
-
-
+            with open(path_root + '/log.txt', 'a') as temp:
+                temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}%, test_Loss: {}, test_Accuracy: {}%\n'.format(
+                    epoch + 1, train_loss.result(), train_accuracy.result(), test_loss.result(),
+                    test_accuracy.result()))
