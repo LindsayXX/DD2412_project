@@ -1,20 +1,21 @@
 import tensorflow as tf
+import pathlib
 import numpy as np
 import os
 from PIL import Image
+import skimage
 import tensorflow_datasets as tfds
 import matplotlib.pyplot as plt
 from tensorflow.python.keras import backend as K
 from tqdm import tqdm
-
-tf.compat.v1.enable_eager_execution()
 
 BATCH_SIZE = 32
 IMG_HEIGHT = 448
 IMG_WIDTH = 448
 NUM_CLASSES = 200
 
-class DataSet():
+
+class DataSet:
 
     def __init__(self, path_root):
         self.image_path = path_root + "/CUB_200_2011/CUB_200_2011/images/"
@@ -31,7 +32,7 @@ class DataSet():
         if GPU:
             n = len(index)
         else:
-            n = 50
+            n = 1000
         if train:
             phi = self.get_phi(index)# Φ, semantic matrix, 28*200
             labels = self.get_label(n, index, set=0)
@@ -176,16 +177,3 @@ class DataSet():
         #   ...
         return ds_train, ds_test
     '''
-
-if __name__=="__main__":
-    path_root = os.path.abspath(os.path.dirname(__file__))
-    bird_data = DataSet(path_root)
-    train_ds, phi = bird_data.load(GPU=False, train=True, batch_size=32) # "oxford_flowers102"
-    #test_ds, useless_semantic = bird_data.load(GPU=False, train=False, batch_size=32)
-    image, label = next(iter(train_ds))
-    # check
-    for i in range(3):
-        im, lab = image[i], label[i]
-        plt.imshow(im.numpy().astype(np.float32))
-        plt.show()
-        print("Label: %d" % lab)

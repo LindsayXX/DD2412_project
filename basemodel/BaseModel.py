@@ -1,93 +1,120 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Flatten, Conv2D, Activation, GlobalAveragePooling2D
-from tensorflow.keras import Model
-import matplotlib.pyplot as plt
-import numpy as np
-from Multi_attention_subnet import VGG_feature, Kmeans, Average_Pooling, Fc, WeightedSum, Average_Pooling_basemodel
-from Cropping_subnet import ReShape224
-from Joint_feature_learning_subnet import Scores
-import tensorflow.keras.optimizers as opt
 from dataloader import DataSet
-from Losses import Loss
-import os
 
-
-# IMG_SIZE = 448
+IMG_SIZE = 448
 BATCH_SIZE = 32
 
 
-class BaseModel(Model):
+class BaseModel(tf.keras.Model):
+    '''
+    Baseline Model: without multi-attention subnet and class-center triplet loss
+    '''
 
-    def __init__(self, n_class):
+    def __init__(self, n_class, semantic_size):
         super(BaseModel, self).__init__()
-        self.reshape224 = ReShape224()
-        self.vgg_features = VGG_feature()
-        self.average_pooling = Average_Pooling_basemodel()
-        self.score = Scores()
-        #self.fc = Dense(n_class, activation="softmax")#, input_shape=(1,28))
+        # self.reshape224 = ReShape224()
+        # self.vgg_features = VGG_feature()
+        # self.average_pooling = Average_Pooling_basemodel()
+        # self.score = Scores()
+        self.vgg_features = tf.keras.applications.VGG19(input_shape=(IMG_SIZE / 2, IMG_SIZE / 2, 3), include_top=False,
+                                                        weights='imagenet')
+        self.vgg_features.trainable = False
+        self.gp = tf.keras.layers.GlobalAveragePooling2D()
+        # self.n = semantic_size
+        w_init = tf.random_normal_initializer()  # default: (0,0.05)
+        self.W = tf.Variable(initial_value=w_init(shape=(512, semantic_size), dtype='float32'), trainable=True,
+                             name="W")
+        # c_init = tf.random_normal_initializer(0, 0.01)
+        # self.C = tf.Variable(initial_value=c_init(shape=(semantic_size, n_class), dtype='float32'), trainable=True,name="C")
 
+    @tf.function
     def call(self, x, phi):
-        resized = self.reshape224(x)  # δίνει (32,224,224,3)
+        resized = tf.image.resize(x, (224, 224))  # δίνει (32,224,224,3)
         features = self.vgg_features(resized)  # δίνει (32,7,7,512)
-        global_theta = self.average_pooling(features)  # tensor of shape (32,512)
-        global_scores, out = self.score(global_theta, phi)
-        #out = self.fc(out)  #prediction (batch_size, 200)
+        global_theta = self.gp(features)  # tensor of shape (32,512)
+        global_mapped = tf.linalg.matmul(global_theta, self.W)
+        global_scores = tf.linalg.matmul(global_mapped, phi)
+        # out = self.fc(out)  #prediction (batch_size, 200)
 
-        return global_scores#, out
+        return global_scores  # , out
 
 
-'''
 @tf.function
-def test_step(model, images):
-    scores = model(images)
-    loss = Loss().loss_CLS(scores)
-    print("Current TestLoss: {}".format(loss))
-'''
+def loss_baseline(score, labels):
+    # scores:  batch_size*200*1
+    # labels: batch_size * 1
+    return tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=score))
 
-#@tf.function
-def train_step(model, image_batch, loss_fun, opt_fun):
-    with tf.GradientTape() as tape:
-        scores, outs = model(image_batch)
-        loss = loss_fun(scores)
-    gradients = tape.gradient(loss, model.trainable_variables)  # ti einai trainable variables?
-    print(gradients)
-    opt_fun.apply_gradients(zip(gradients, model.trainable_variables))
-    #print("Current TrainLoss: {}".format(loss))
-    return loss
+
+def
+
 
 if __name__ == '__main__':
-    path_root = os.path.abspath(os.path.dirname(__file__))
+    # tf.compat.v1.enable_eager_execution()
+    path_root = '/content/gdrive/My Drive/data'  # os.path.abspath(os.path.dirname(__file__))
     bird_data = DataSet(path_root)
     train_ds, phi = bird_data.load(GPU=False, train=True, batch_size=32)
     test_ds, useless_semantic = bird_data.load(GPU=False, train=False, batch_size=32)
-    image_batch, label_batch = next(iter(train_ds))
+    # image_batch, label_batch = next(iter(train_ds))
 
-    basemodel = BaseModel(200)
+    model = BaseModel(200, 28)
+    opt = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)  # or SGDW with weight decay
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=model)
+    manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=3)
 
-    global_scores, out = basemodel(image_batch)#, phi)
-    # sizes (32,1),(1,200)
+    train_loss = tf.keras.metrics.Mean(name='train_loss')
+    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
+    test_loss = tf.keras.metrics.Mean(name='test_loss')
+    test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
 
-    EPOCHS = 5
 
-    #train_loss = tf.keras.metrics.Mean(name='train_loss')
-    opt_fun = opt.SGD(learning_rate=0.05, momentum=0.9)#, decay=)
-    # or SGDW
+    @tf.function
+    def test_step(images, labels):
+        scores = model(images, phi)
+        t_loss = loss_baseline(scores, labels)
+        t_pred = tf.argmax(scores)
 
+        test_loss(t_loss)
+        # test_accuracy(labels, t_pred)
+        return t_loss, t_pred
+
+
+    @tf.function
+    def train_step(images, labels):
+        with tf.GradientTape() as tape:
+            scores = model(images, phi)
+            loss = loss_baseline(scores, labels)
+        gradients = tape.gradient(loss, model.trainable_variables)  # ti einai trainable variables?
+        # print(gradients)
+        opt.apply_gradients(zip(gradients, model.trainable_variables))
+        y_pred = tf.argmax(scores)
+        # print(y_pred.shape)
+
+        # return loss, y_pred
+        train_loss(loss)
+        # train_accuracy(labels, y_pred)
+
+
+    train_loss_results = []
+    train_accuracy_results = []
+    EPOCHS = 30
     for epoch in range(EPOCHS):
-        loss_fun = Loss().loss_CLS
-        #for images, labels in zip(image_batch, label_batch):
-        train_loss = train_step(basemodel, image_batch, label_batch, loss_fun, opt_fun)
-        template = 'Epoch {}, Loss: {}'
-        print(template.format(epoch + 1, train_loss))
+        for images, labels in train_ds:
+            train_step(images, labels)
 
-        # Reset the metrics for the next epoch
-        # train_loss.reset_states()
-        #train_accuracy.reset_states()
-        #test_loss.reset_states()
-        #test_accuracy.reset_states()
+        ckpt.step.assign_add(1)
+        if int(ckpt.step) % 10 == 0:
+            save_path = manager.save()
+            print("Saved checkpoint for epoch {}: {}".format(epoch), save_path)
+            print("loss {:1.2f}".format(loss.numpy()))
+        # for test_images, test_labels in test_ds:
+        # test_step(test_images, test_labels)
 
-# for test_images, test_labels in test_ds:
-#    test_step(test_images, test_labels)
-# TODO: pre-train vgg only on birds
-# TODO: global variables of this module may differ from the subnetworks module.
+        # template = 'Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}'
+        # print(template.format(epoch+1, train_loss.result(), train_accuracy.result()*100, test_loss.result(), test_accuracy.result()*100))
+        #tf.print('Epoch {}, train_Loss: {}'.format(epoch + 1, train_loss.result()))
+        with open('/log.txt', 'a') as temp:
+            temp.write('Epoch {}, train_Loss: {}%\n'.format(epoch + 1, train_loss.result()))
+
+
+

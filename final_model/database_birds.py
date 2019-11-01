@@ -18,7 +18,7 @@ class DataSet:
     def get_label(self, file_path):
         # convert the path to a list of path components
         labels = sci.loadmat(file_path)
-        #parts = tf.strings.split(file_path, '/')
+        parts = tf.strings.split(file_path, '/')
         # The second to last is the class-directory
         #return parts[-2] == CLASS_NAMES
 

@@ -1,25 +1,19 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Flatten, Conv2D
-from tensorflow.keras import Model
 from DataBase import Database
-from model import FinalModel
-from .LossesLosses import Loss
+from BaseModel import BaseModel
 
-
+if __name__ == '__main__':
 # IMPORTING DATA
 data = Database()
 image_batch, label_batch = data()
 
-
 # MODEL INSTATIATION
 model = BaseModel()
 
-
 #Choose an optimizer and loss function for training:
 loss_object = Loss.loss_CCT()
-optimizer = tf.keras.optimizers.Adam()
-
+optimizer = tf.keras.optimizers.SGD()
 
 
 #Select metrics to measure the loss and the accuracy of the model. These metrics accumulate the values over epochs
@@ -33,7 +27,7 @@ test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
 @tf.function
 def train_step(image_batch, label_batch):
   with tf.GradientTape() as tape:
-    scores = model(image_batch)
+    predictions = model(image_batch)
     loss = loss_object(scores, label_batch)
   gradients = tape.gradient(loss, model.trainable_variables) #ti einai trainable variables?
   optimizer.apply_gradients(zip(gradients, model.trainable_variables))
