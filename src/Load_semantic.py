@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-file_path = '/Volumes/Watermelon/CUB_200_2011/attributes.txt'
+file_path = 'D:/MY2/ADDL/DD2412_project/CUB_200_2011/attributes.txt'
 
 attributes = {}
 with open(file_path) as fp:
@@ -13,7 +13,7 @@ with open(file_path) as fp:
         else:
             attributes[info[0]] = [int(id_a)]
 
-file_path2 = '/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/attributes/image_attribute_labels.txt'
+file_path2 = 'D:/MY2/ADDL/DD2412_project/CUB_200_2011/CUB_200_2011/attributes/image_attribute_labels.txt'
 
 import numpy as np
 

@@ -37,12 +37,13 @@ class BaseModel(Model):
         return global_scores#, out
 
 
-# test the model
+'''
 @tf.function
 def test_step(model, images):
     scores = model(images)
     loss = Loss().loss_CLS(scores)
     print("Current TestLoss: {}".format(loss))
+'''
 
 #@tf.function
 def train_step(model, image_batch, loss_fun, opt_fun):
@@ -70,10 +71,11 @@ if __name__ == '__main__':
     EPOCHS = 5
 
     #train_loss = tf.keras.metrics.Mean(name='train_loss')
+    opt_fun = opt.SGD(learning_rate=0.05, momentum=0.9)#, decay=)
+    # or SGDW
 
     for epoch in range(EPOCHS):
         loss_fun = Loss().loss_CLS
-        opt_fun = opt.SGD(lr=0.05)
         #for images, labels in zip(image_batch, label_batch):
         train_loss = train_step(basemodel, image_batch, label_batch, loss_fun, opt_fun)
         template = 'Epoch {}, Loss: {}'
