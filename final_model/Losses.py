@@ -31,14 +31,14 @@ class Loss():
             if value_in_mi > 0.0:
                 max_mk_opp.write(i, value_in_mi)
             else:
-                max_mk_opp.write(i, tf.constant(0.0))
+                max_mk_opp.write(i, tf.constant([0.0]))
 
             indx_mi = tf.where(m_i[i, :, :] == max_mi[i])
             value_in_mk = tf.gather_nd(m_k[i, :, :], indx_mi) - self.margin_div
             if value_in_mi> 0.0:
                 max_mi_opp.write(i, value_in_mk)
             else:
-                max_mi_opp.write(i, tf.constant(0.0))
+                max_mi_opp.write(i, tf.constant([0.0]))
         max_mk_opp = max_mk_opp.stack()
         max_mi_opp = max_mi_opp.stack()
         lossmk = tf.reduce_sum(tf.multiply(tf.expand_dims(max_mk, 1), max_mk_opp))

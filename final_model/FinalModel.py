@@ -92,26 +92,26 @@ class FinalModel(Model):
 
     def call(self, x, phi):
 
-        # MULTI ATTENTION SUBNET
-        # x will be image_batch of shape (BATCH,448,448,3)
-        #print("VGG")
-        feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
-        #print(feature_map.shape)
-        #print("KMEANS")
-        batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
-        #print("AVR POOL")
-        #print(batch_cluster0.shape, batch_cluster1.shape)
-        p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
-        p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
-        #print("FC")
-        a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
-        a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
-        #print("WS")
-        m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
-        m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
+        # # MULTI ATTENTION SUBNET
+        # # x will be image_batch of shape (BATCH,448,448,3)
+        # #print("VGG")
+        # feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
+        # #print(feature_map.shape)
+        # #print("KMEANS")
+        # batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
+        # #print("AVR POOL")
+        # #print(batch_cluster0.shape, batch_cluster1.shape)
+        # p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
+        # p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
+        # #print("FC")
+        # a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
+        # a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
+        # #print("WS")
+        # m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
+        # m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
 
-        #m0 = tf.convert_to_tensor(np.load("im0.npy"))
-        #m1 = tf.convert_to_tensor(np.load("im1.npy"))
+        m0 = tf.convert_to_tensor(np.load("im0.npy"))
+        m1 = tf.convert_to_tensor(np.load("im1.npy"))
         attmap_out = tf.TensorArray(tf.float32, 2)
         attmap_out.write(0, m0)
         attmap_out.write(1, m1)
@@ -177,7 +177,7 @@ class FinalModel(Model):
         return attmap_out, attention_crop_out, scores_out, phis_out, y_pred, self.C
 
 
-@tf.function
+#@tf.function
 def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun):
     with tf.GradientTape() as tape:
         attmap_out, attention_crop_out, scores_out, phis_out, y_pred, C = model(image_batch, PHI)
