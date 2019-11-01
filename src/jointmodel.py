@@ -10,21 +10,22 @@ import numpy as np
 IMG_SIZE = 448
 '''Multi-Attention Subnet'''
 
-
 '''Region Cropping Subnet'''
 
-
 '''Joint Feature Learning Subnet'''
+
+
 class JFL(tf.keras.Model):
-    def __init__(self, n_classes, semantic_size):
+    def __init__(self, n_classes = 200, semantic_size = 28, feature_size = 512):
         super(JFL, self).__init__()
         # mapped feature is a vector of size as semantic feature size (n)
         self.n = semantic_size
-        self.embedding = tf.keras.layers.Embedding(self.n, n_classes)#input: class label, embedding_size=semantic_size
-        self.W = tf.keras.layers.Dense(self.n, activation="relu")# input_shape=(feature_size))
-        self.l2loss = tf.keras.layers.Lambda(lambda x: tf.keras.backend.sum(tf.keras.backend.square(x[0] - x[1][:, 0]), 1, keepdims=True))
+        self.embedding = tf.keras.layers.Embedding(self.n,
+                                                   n_classes)  # input: class label, embedding_size=semantic_size
+        self.W = tf.keras.layers.Dense(self.n, activation="relu", input_shape=(feature_size,))
+        self.l2loss = tf.keras.layers.Lambda(
+            lambda x: tf.keras.backend.sum(tf.keras.backend.square(x[0] - x[1][:, 0]), 1, keepdims=True))
         self.fc = tf.keras.layers.Dense(n_classes, activation="softmax")
-
 
     def call(self, thetas, phi):
         """
@@ -35,29 +36,38 @@ class JFL(tf.keras.Model):
         """
         # trainable class centers, C={c1, c2, ..., c_{n_classes}}
         # initialize: (0, 0.01) Gaussian distribution
-        center = self.embedding(tf.squeeze(phi))# batch_size, n_classes, semantic_size
-        scores = []
+        #center = self.embedding(tf.squeeze(phi))  # batch_size, n_classes, semantic_size
+        n_thetas = thetas.shape[0]
+        scores = tf.TensorArray(tf.float32, size=n_thetas)
+        phi_samples = tf.TensorArray(tf.float32, size=n_thetas)
         # need further model integration
-        for i in range(len(thetas)):
-            theta = thetas[i]
-            #theta = self.reshape(theta)
-            out = self.W(theta) # should have size 1 * n
+        for i in range(n_thetas):
+            theta = tf.expand_dims(thetas[i, :], 0)
+            # theta = self.reshape(theta)
+            out = self.W(theta)  # should have size 1 * n
+            phi_samples.write(i, out)
             # compatibility score: s_j^i = theta_i(x)^T W_i phi(y_i)
-            scores.append(tf.linalg.matmul(out, phi))
+            scores.write(i, tf.linalg.matmul(out, phi))
             # compute ||~phi_i - ~Ci|| and ||~phi_i - ~Cj||, '~' is normalization
-            l2loss = self.l2loss([tf.math.l2_normalize(tf.squeeze(out)), tf.math.l2_normalize(tf.transpose(center, perm=[0, 2, 1]))])
-        scores = tf.stack(scores)
-        scores = tf.transpose(tf.squeeze(scores))
+            #l2loss = self.l2loss(
+            #    [tf.math.l2_normalize(tf.squeeze(out)), tf.math.l2_normalize(tf.transpose(center, perm=[0, 2, 1]))])
+        scores = tf.squeeze(scores.stack())
+        phi_samples = tf.squeeze(phi_samples.stack())
+        #scores = tf.transpose(tf.squeeze(scores))
         # Normalize the scores???
         # "normalize each descriptor independently, and concatenate them together into
         #  fully-connected fusion layer with softmax function for the final classification. "
-        score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
-        out = self.fc(out)
+        #score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
 
-        return score, l2loss, out
+        return self.normalizer(scores), phi_samples #, l2loss
 
+    def normalizer(self, score):
+        mean = tf.math.reduce_mean(score, 1)
+        std = tf.math.reduce_std(score, 1)
+        new_scores = (score - tf.expand_dims(mean, 1))/tf.expand_dims(std, 1)
+        return new_scores
 
-#@tf.function
+# @tf.function
 def CCT_loss(y_true, y_pred, n_classes, margin=0.8):
     # triplet center loss
     # Original implementation: https://github.com/popcornell/keras-triplet-center-loss/blob/master/triplet.py
@@ -81,13 +91,15 @@ def CCT_loss(y_true, y_pred, n_classes, margin=0.8):
     # mask2 = tf.ones((tf.shape(y_true_r)[0], tf.shape(y_true_r)[1]))  # todo inf
     # use tf.where(tf.equal(masked, 0.0), np.inf*tf.ones_like(masked), masked)
 
-    masked = y_pred_r[:, :, 0] * tf.cast(mask, tf.float32)  # + (mask2 * tf.cast(tf.logical_not(mask), tf.float32))*tf.constant(float(2**10))
+    masked = y_pred_r[:, :, 0] * tf.cast(mask,
+                                         tf.float32)  # + (mask2 * tf.cast(tf.logical_not(mask), tf.float32))*tf.constant(float(2**10))
     masked = tf.where(tf.equal(masked, 0.0), np.inf * tf.ones_like(masked), masked)
 
     minimum = tf.math.reduce_min(masked, axis=1)
     loss = tf.keras.backend.max(y_pred - minimum + margin, 0)
 
     return loss
+
 
 # @tf.funcion
 def CLS(score, label):
@@ -106,13 +118,14 @@ if __name__ == '__main__':
     '''
     batch_size = 5
     n_class = 100
-    semantic_size = 20
-    sample_feature_1 = tf.random.normal([batch_size, 1, 512])# global feature
-    sample_feature_2 = tf.random.normal([batch_size, 1, 512])# local feature1(head)
-    sample_feature_3 = tf.random.normal([batch_size, 1, 512])# local feature2(tail)
-    sample_semantic = tf.ones([batch_size, semantic_size, 1])
+    semantic_size = 28
+    feature_size = 512
+    sample_feature_1 = tf.random.normal([batch_size, 1, 512])  # global feature
+    sample_feature_2 = tf.random.normal([batch_size, 1, 512])  # local feature1(head)
+    sample_feature_3 = tf.random.normal([batch_size, 1, 512])  # local feature2(tail)
+    sample_feature = tf.convert_to_tensor(np.load("../final_model/theta_global.npy")) #
+    sample_semantic = tf.convert_to_tensor(np.load("../final_model/phi.npy")) #tf.ones([batch_size, semantic_size, 1])
     sample_labels = tf.zeros([batch_size, 1, n_class])
-    joint_net = JFL(n_class, semantic_size)
-    sample_feature = [sample_feature_1, sample_feature_2, sample_feature_3]
+    joint_net = JFL(n_class, semantic_size, feature_size)
+    #sample_feature = [sample_feature_1, sample_feature_2, sample_feature_3]
     y_pred = joint_net.call(sample_feature, sample_semantic)
-

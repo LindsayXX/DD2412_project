@@ -10,8 +10,11 @@ class Classifier(layers.Layer):
       Returns:
           call function returns a list of compatibility score- tensors
     """
-    def __init__(self):
-        super(self).__init__()
+    def __init__(self, n_classes):
+        super(Classifier, self).__init__()
+        self.n_classes = n_classes
 
     def call(self, scores):
         sum_scores = tf.math.reduce_sum(scores, [0])
+        y_pred = tf.math.argmax(sum_scores, 1)
+        return y_pred
