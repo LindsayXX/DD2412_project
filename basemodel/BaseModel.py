@@ -99,8 +99,8 @@ if __name__ == '__main__':
         for images, labels in train_ds:
             train_step(images, labels)
 
-        for test_images, test_labels in test_ds:
-            test_step(test_images, test_labels)
+        #for test_images, test_labels in test_ds:
+            #test_step(test_images, test_labels)
 
         #tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}%\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
 
@@ -108,6 +108,11 @@ if __name__ == '__main__':
         if int(ckpt.step) % CHECKEPOCHS == 0:
             save_path = manager.save()
             with open(path_root + '/log.txt', 'a') as temp:
-                temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}%, test_Loss: {}, test_Accuracy: {}%\n'.format(
-                    epoch + 1, train_loss.result(), train_accuracy.result(), test_loss.result(),
-                    test_accuracy.result()))
+                temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}%\n'.format(
+                    epoch + 1, train_loss.result(), train_accuracy.result()))
+                #, test_loss.result(), test_accuracy.result()))
+
+    for test_images, test_labels in test_ds:
+        test_step(test_images, test_labels)
+    with open(path_root + '/log.txt', 'a') as temp:
+        temp.write('Test_Loss: {}, Test_Accuracy: {}%\n'.format(test_loss.result(), test_accuracy.result()))
