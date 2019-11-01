@@ -31,7 +31,7 @@ class DataSet():
         if GPU:
             n = len(index)
         else:
-            n = 50
+            n = 200
         if train:
             phi = self.get_phi(index)# Φ, semantic matrix, 28*200
             labels = self.get_label(n, index, set=0)
@@ -41,7 +41,7 @@ class DataSet():
             images = self.get_image(n, index, set=1)
             phi = self.get_semantic(n, index, set=1) # φ, semantic features 28, n
 
-        ds = tf.data.Dataset.from_tensor_slices((images, np.asarray(labels))).shuffle(1000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        ds = tf.data.Dataset.from_tensor_slices((images, np.asarray(labels))).shuffle(10000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return ds, tf.convert_to_tensor(phi, dtype=tf.float32)
 
@@ -178,7 +178,7 @@ class DataSet():
     '''
 
 if __name__=="__main__":
-    path_root = os.path.abspath(os.path.dirname(__file__))
+    path_root = "/Volumes/Watermelon" #os.path.abspath(os.path.dirname(__file__))
     bird_data = DataSet(path_root)
     train_ds, phi = bird_data.load(GPU=False, train=True, batch_size=32) # "oxford_flowers102"
     #test_ds, useless_semantic = bird_data.load(GPU=False, train=False, batch_size=32)
