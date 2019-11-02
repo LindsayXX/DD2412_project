@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from Classification import Classifier
-from Multi_attention_subnet import VGG_feature,Kmeans, Average_Pooling, Fc, WeightedSum
+from Multi_attention_subnet import VGG_feature, Kmeans, Average_Pooling, Fc, WeightedSum
 from Cropping_subnet import ReShape224, RCN, Crop
 from Joint_feature_learning_subnet import Scores
 from dataloader import DataSet
@@ -41,8 +41,8 @@ class FinalModel(Model):
                                                  weights='imagenet') #VGG_feature()
         self.vgg_features_initial.trainable = False
         self.kmeans = Kmeans(clusters_n=2, iterations=10)
-        self.average_pooling_0 = Average_Pooling()
-        self.average_pooling_1 = Average_Pooling()
+        self.average_pooling_0 = tf.keras.layers.GlobalAveragePooling2D() #Average_Pooling()
+        self.average_pooling_1 = tf.keras.layers.GlobalAveragePooling2D() #Average_Pooling()
         self.fc_0 = Fc(CHANNELS)
         self.fc_1 = Fc(CHANNELS)
         self.weighted_sum0 = WeightedSum()
@@ -90,32 +90,31 @@ class FinalModel(Model):
 
         self.classifier = Classifier(N_CLASSES)
 
+        self.attmap_out = tf.TensorArray(tf.float32, 2)
+        self.attention_crop_out = tf.TensorArray(tf.float32, size=2)
+        self.scores_out = tf.TensorArray(tf.float32, 3)
+        self.phis_out = tf.TensorArray(tf.float32, 3)
+
     def call(self, x, phi):
 
-        # # MULTI ATTENTION SUBNET
-        # # x will be image_batch of shape (BATCH,448,448,3)
-        # #print("VGG")
-        # feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
-        # #print(feature_map.shape)
-        # #print("KMEANS")
-        # batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
-        # #print("AVR POOL")
-        # #print(batch_cluster0.shape, batch_cluster1.shape)
-        # p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
-        # p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
-        # #print("FC")
-        # a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
-        # a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
-        # #print("WS")
-        # m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
-        # m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
+        # MULTI ATTENTION SUBNET
+        feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
+        batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
+
+        p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
+        p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
+
+        a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
+        a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
+
+        m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
+        m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
 
         m0 = tf.convert_to_tensor(np.load("im0.npy"))
         m1 = tf.convert_to_tensor(np.load("im1.npy"))
-        attmap_out = tf.TensorArray(tf.float32, 2)
-        attmap_out.write(0, m0)
-        attmap_out.write(1, m1)
-        attmap_out = attmap_out.stack()
+        self.attmap_out.write(0, m0)
+        self.attmap_out.write(1, m1)
+        attmap_out = self.attmap_out.stack()
 
         #print("CROP")
         #CROPPING SUBNET
@@ -123,10 +122,10 @@ class FinalModel(Model):
         mask2 = self.crop_net1(m1) #shape(BATCH,14,14)
         croped0, newmask1 = self.crop0(x, mask1) #of shape (BATCH,448,448,3)
         croped1, newmask2 = self.crop1(x, mask2) #of shape (BATCH,448,448,3)
-        attention_crop_out = tf.TensorArray(tf.float32, size=2)
-        attention_crop_out.write(0, mask1)
-        attention_crop_out.write(1, mask2)
-        attention_crop_out = attention_crop_out.stack()
+
+        self.attention_crop_out.write(0, mask1)
+        self.attention_crop_out.write(1, mask2)
+        attention_crop_out = self.attention_crop_out.stack()
         #gives 3 tensors of size (batch,448,448,3)
 
         #print("RESHAPE")
@@ -160,16 +159,14 @@ class FinalModel(Model):
         global_scores, global_phi = self.joint_net_global.call(global_theta, phi) #self.global_score(global_theta, phi)
         local_scores0, local0_phi = self.joint_net_local0.call(local_theta0, phi) #self.score0(local_theta0, phi)
         local_scores1, local1_phi = self.joint_net_local1.call(local_theta1, phi) #self.score1(local_theta1, phi)
-        scores_out = tf.TensorArray(tf.float32, 3)
-        scores_out.write(0, global_scores)
-        scores_out.write(1, local_scores0)
-        scores_out.write(2, local_scores1)
-        scores_out = scores_out.stack()
-        phis_out = tf.TensorArray(tf.float32, 3)
-        phis_out.write(0, global_phi)
-        phis_out.write(1, local0_phi)
-        phis_out.write(2, local1_phi)
-        phis_out = phis_out.stack()
+        self.scores_out.write(0, global_scores)
+        self.scores_out.write(1, local_scores0)
+        self.scores_out.write(2, local_scores1)
+        scores_out = self.scores_out.stack()
+        self.phis_out.write(0, global_phi)
+        self.phis_out.write(1, local0_phi)
+        self.phis_out.write(2, local1_phi)
+        phis_out = self.phis_out.stack()
 
         #print(scores_out.shape)
         y_pred = self.classifier(scores_out)
@@ -177,7 +174,7 @@ class FinalModel(Model):
         return attmap_out, attention_crop_out, scores_out, phis_out, y_pred, self.C
 
 
-#@tf.function
+@tf.function
 def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun):
     with tf.GradientTape() as tape:
         attmap_out, attention_crop_out, scores_out, phis_out, y_pred, C = model(image_batch, PHI)
@@ -218,7 +215,8 @@ if __name__ == '__main__':
     #image_batch, label_batch = next(iter(DS))
     for epoch in range(EPOCHS):
         for images, labels in DS:
-            train_loss = train_step(modelaki, images, labels, PHI, loss_fun, opt_fun)
+            if images.shape[0] == 32:
+                train_loss = train_step(modelaki, images, labels, PHI, loss_fun, opt_fun)
 
         # for test_images, test_labels in test_ds:
         #    test_step(test_images, test_labels)

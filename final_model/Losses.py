@@ -51,7 +51,7 @@ class Loss():
     # @tf.function
     def loss_CCT(self, semantic_features, labels, C):
         N = semantic_features.shape[0] * semantic_features.shape[1]
-        loss = tf.Variable(0.0)
+        loss = 0.0
         norm_C = tf.math.l2_normalize(C, axis=1)
         for f in range(semantic_features.shape[0]):
             sf = semantic_features[f, :, :]

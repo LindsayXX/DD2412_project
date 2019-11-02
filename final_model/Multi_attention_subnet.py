@@ -137,7 +137,7 @@ class Average_Pooling(layers.Layer):
     '''
 
     def __init__(self):
-        super( Average_Pooling, self).__init__()
+        super(Average_Pooling, self).__init__()
 
     def call(self, cluster):
         n_cluster = cluster.shape[0]
@@ -161,7 +161,7 @@ class Average_Pooling_basemodel(layers.Layer):
     '''
 
     def __init__(self):
-        super( Average_Pooling_basemodel, self).__init__()
+        super(Average_Pooling_basemodel, self).__init__()
 
     def call(self, cluster):
         cluster = tf.unstack(cluster, axis=0)
@@ -188,18 +188,19 @@ class Fc(layers.Layer):
         self.fc1 = tf.keras.layers.Dense(input_shape, input_shape=(input_shape,), activation="relu", kernel_initializer=self.initializer)
         self.fc2 = tf.keras.layers.Dense(input_shape, activation="sigmoid", kernel_initializer=self.initializer)
         self.bn = tf.keras.layers.BatchNormalization()
+        self.a_batch = tf.TensorArray(tf.float32, size=BATCH_SIZE)
 
     def call(self, p_batch):
         n_p_batch = p_batch.shape[0]
-        a_batch = tf.TensorArray(tf.float32, size=n_p_batch)
+        #a_batch = tf.TensorArray(tf.float32, size=n_p_batch)
         for i in range(n_p_batch):
             p = p_batch[i]
             p = tf.expand_dims(p, 0)
             out = self.fc1(p)
             out = self.fc2(out)
             a = self.bn(out)
-            a_batch.write(i, a)
-        a_batch = tf.squeeze(a_batch.stack())
+            self.a_batch.write(i, a)
+        a_batch = tf.squeeze(self.a_batch.stack())
         return a_batch
 
 
@@ -215,18 +216,19 @@ class WeightedSum(layers.Layer):
 
     def __init__(self):
         super(WeightedSum, self).__init__()
+        self.attention_maps_batch = tf.TensorArray(tf.float32, size=BATCH_SIZE)
 
     def call(self, batch, a_batch):
         n_batch = batch.shape[0]
-        attention_maps_batch = tf.TensorArray(tf.float32, size=n_batch )
+        #attention_maps_batch = tf.TensorArray(tf.float32, size=n_batch)
         for b in range(n_batch):
             image = tf.zeros((batch.shape[1], batch.shape[2]))
             for c in range(batch.shape[-1]):
                 w_image = tf.multiply(batch[b, :, :, c], a_batch[b, c])
                 image += w_image
             image /= tf.math.reduce_max(image)
-            attention_maps_batch.write(b, image)
-        attention_maps_batch = attention_maps_batch.stack()
+            self.attention_maps_batch.write(b, image)
+        attention_maps_batch = self.attention_maps_batch.stack()
         return attention_maps_batch
 
 import pickle
