@@ -199,7 +199,7 @@ def test_step(model, images, loss_fun):
 #testing by running
 
 if __name__ == '__main__':
-    database = DataSet("/Volumes/Watermelon")
+    database = DataSet("/Users/stella/Downloads/")
     DS, PHI = database.load(GPU=False, train=True, batch_size=BATCH_SIZE) #image_batch, label_batch
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
@@ -218,7 +218,9 @@ if __name__ == '__main__':
     #image_batch, label_batch = next(iter(DS))
     for epoch in range(EPOCHS):
         for images, labels in DS:
-            train_loss = train_step(modelaki, images, labels, PHI, loss_fun, opt_fun)
+            if images.shape[0] == 32:
+                train_loss = train_step(modelaki, images, labels, PHI, loss_fun, opt_fun)
+
 
         # for test_images, test_labels in test_ds:
         #    test_step(test_images, test_labels)
