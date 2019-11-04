@@ -16,10 +16,8 @@ IMG_WIDTH = 448
 class VGG_feature(layers.Layer):
     '''
     A pre-trained VGG19 network that extracts the features out of images
-
     Args:
          images = tensor of shape (batch_size, image_size, image_size, 3)
-
     Returns:
          features = tensor of shape (batch_size, width, height, channels)
     '''
@@ -36,10 +34,8 @@ class VGG_feature(layers.Layer):
 class Kmeans(layers.Layer):
     '''
         Clusters up the generated Feature Map into 2 clusters
-
         Args:
             receives a (batch_size,14,14,512) tensor of batch of features
-
         Returns:
             two lists, each one contains 32 tensors of shape (512,14,14)
         '''
@@ -127,7 +123,31 @@ class Kmeans(layers.Layer):
         batch_cluster1 = tf.transpose(batch_cluster1.stack(), perm=[0, 2, 3, 1])
         return batch_cluster0, batch_cluster1
 
+# this is a new version of Average Pooling
+class Average_Pooling(layers.Layer):
+    '''
+    Args:
+         tesnor (32,14,14,512)
+    Returns:
+        tensor (32,512)
 
+    if you think its wrong,we canuse a layer from keras instead:
+    https://www.tensorflow.org/api_docs/python/tf/keras/layers/AveragePooling2D
+
+    '''
+
+    def __init__(self):
+        super( Average_Pooling, self).__init__()
+
+    def call(self, cluster):
+        out = tf.math.reduce_mean(cluster, axis=(1, 2))
+        return out
+
+#if you think its wrong,we canuse a layer from keras instead:
+#https://www.tensorflow.org/api_docs/python/tf/keras/layers/AveragePooling2D
+
+
+"""
 class Average_Pooling(layers.Layer):
     '''
     Args:
@@ -171,10 +191,12 @@ class Average_Pooling_basemodel(layers.Layer):
             p = tf.math.reduce_sum(b, axis=(0, 1))/(H*W)
             p_batch.append(p)
         return p_batch
+        
+        
+"""
 
 class Fc(layers.Layer):
     '''
-
     As a part of the Multi-Attention subnet it will return the weight vector
         Args:
             a list of  32(=batch_size) tensors of size (512,)
@@ -206,9 +228,33 @@ class Fc(layers.Layer):
 class WeightedSum(layers.Layer):
     """
     Generates the final attention maps focused on certain parts of the image.
-
     Args:
-        a tensor of shape()32,512
+        feature map (32,14,14,512)  and a tensor (weight vector) of shape(32,512)
+    Returns:
+        a tensor of size (32,14,14). We sum along axis=3 (that is 512) using the weight vector.
+    """
+
+    def __init__(self):
+        super(WeightedSum, self).__init__()
+
+    def call(self, feature_batch, weight_vector):
+
+        # expand dims twice to make the weight vector to be of shape ([32, 1, 1, 512])
+        weight_vector = tf.expand_dims(weight_vector, axis=1)
+        weight_vector = tf.expand_dims(weight_vector, axis=2)
+
+        product = tf.math.multiply(feature_batch, weight_vector) # product shape is (32,14,14,512)
+        summed_product = tf.math.reduce_sum(product, axis=3)  # summed product shape is (32,14,14)
+        denominator = tf.math.reduce_sum(weight_vector, axis=3) # will be dividing by this (shape=(32,1,1))
+
+        return summed_product/denominator
+
+'''
+class WeightedSum(layers.Layer):
+    """
+    Generates the final attention maps focused on certain parts of the image.
+    Args:
+        a tensor of shape(32,512)
     Returns:
         a tensor of size (32,14,14)
     """
@@ -228,6 +274,7 @@ class WeightedSum(layers.Layer):
             attention_maps_batch.write(b, image)
         attention_maps_batch = attention_maps_batch.stack()
         return attention_maps_batch
+'''
 
 import pickle
 
