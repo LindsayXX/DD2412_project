@@ -11,7 +11,7 @@ IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 IMG_HEIGHT = 448
 IMG_WIDTH = 448
-
+N_CHANNELS = 512
 
 class VGG_feature(layers.Layer):
     '''
@@ -78,26 +78,39 @@ class Kmeans(layers.Layer):
         return assignments
 
     def get_max_pixels(self, batch):
-        max_batch = tf.TensorArray(tf.int64, size=batch.shape[0])
-        for i in range(batch.shape[0]):
-            image_batch = batch[i, :, :, :]
-            max_pix = tf.TensorArray(tf.int64, size=batch.shape[-1])
-            for channel in range(image_batch.shape[2]):
-                image = image_batch[:, :, channel]
-                maximum = tf.math.reduce_max(image)
-                x = tf.where(image == maximum)
-                if x.shape[0] == 1:
-                    max_pix.write(channel, x) #max_pix.append(x)
-                else:
-                    # continue
-                    choice = tf.dtypes.cast(tf.random.uniform((1, 1), 0, x.shape[0]), tf.int64)[0][0]
-                    max_pix.write(channel, tf.expand_dims(x[choice], 0)) #.append(tf.expand_dims(x[choice], 0))
-            max_pix = max_pix.stack()
-            max_batch.write(i, max_pix)
-        max_batch = tf.reshape(max_batch.stack(), [batch.shape[0], batch.shape[-1], 2])
-        return max_batch
+        batch_t = tf.transpose(batch, [0, 3, 1, 2])
 
-    def call(self,feature_batch):
+        max1 = tf.reduce_max(batch_t, axis=2)
+        arg1 = tf.argmax(max1, axis=2)
+        arg1 = tf.expand_dims(arg1, 2)
+
+        max0 = tf.reduce_max(batch_t, axis=3)
+        arg0 = tf.argmax(max0, axis=2)
+        arg0 = tf.expand_dims(arg0, 2)
+
+        max_pixels = tf.concat([arg1, arg0], axis=2)
+        return max_pixels
+
+        # max_batch = tf.TensorArray(tf.int64, size=batch.shape[0])
+        # for i in range(batch.shape[0]):
+        #     image_batch = batch[i, :, :, :]
+        #     max_pix = tf.TensorArray(tf.int64, size=batch.shape[-1])
+        #     for channel in range(image_batch.shape[2]):
+        #         image = image_batch[:, :, channel]
+        #         maximum = tf.math.reduce_max(image)
+        #         x = tf.where(image == maximum)
+        #         if x.shape[0] == 1:
+        #             max_pix.write(channel, x) #max_pix.append(x)
+        #         else:
+        #             # continue
+        #             choice = tf.dtypes.cast(tf.random.uniform((1, 1), 0, x.shape[0]), tf.int64)[0][0]
+        #             max_pix.write(channel, tf.expand_dims(x[choice], 0)) #.append(tf.expand_dims(x[choice], 0))
+        #     max_pix = max_pix.stack()
+        #     max_batch.write(i, max_pix)
+        # max_batch = tf.reshape(max_batch.stack(), [batch.shape[0], batch.shape[-1], 2])
+        # return max_batch
+
+    def call(self, feature_batch):
         max_points = self.get_max_pixels(feature_batch)
         n_max_points = max_points.shape[0]
         batch_cluster0 = tf.TensorArray(tf.float32, size=n_max_points)

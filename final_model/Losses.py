@@ -13,7 +13,7 @@ class Loss():
     # @tf.function
     def loss_CPT(self, map_att, gtmap, batch_size=32):
         diff = tf.math.abs(map_att - gtmap)
-        return 2 * tf.nn.l2_loss(diff)/batch_size
+        return tf.nn.l2_loss(diff)/batch_size
 
     # @tf.function
     def loss_DIV(self, attmap_out):
@@ -22,28 +22,49 @@ class Loss():
         m_i = attmap_out[1, :, :, :]
         n = m_k.shape[0]
         max_mk = tf.math.reduce_max(m_k, axis=[1, 2])
-        max_mi = tf.math.reduce_max(m_k, axis=[1, 2])
-        max_mk_opp = tf.TensorArray(tf.float32, size=n)
-        max_mi_opp = tf.TensorArray(tf.float32, size=n)
+        max_mi = tf.math.reduce_max(m_i, axis=[1, 2])
+        loss = tf.Variable(tf.constant([0.0]))
+        value_in_mi = tf.Variable(tf.constant([0.0]))
+        value_in_mk = tf.Variable(tf.constant([0.0]))
         for i in range(n):
             indx_mk = tf.where(m_k[i, :, :] == max_mk[i])
-            value_in_mi = tf.gather_nd(m_i[i, :, :], indx_mk) - self.margin_div
-            if value_in_mi > 0.0:
-                max_mk_opp.write(i, value_in_mi)
-            else:
-                max_mk_opp.write(i, tf.constant([0.0]))
+            aux = tf.gather_nd(m_i[i, :, :], indx_mk) - self.margin_div
+            if aux > 0.0:
+                value_in_mi = aux
+            loss = loss + tf.multiply(max_mk[i], value_in_mi)
 
             indx_mi = tf.where(m_i[i, :, :] == max_mi[i])
-            value_in_mk = tf.gather_nd(m_k[i, :, :], indx_mi) - self.margin_div
-            if value_in_mi> 0.0:
-                max_mi_opp.write(i, value_in_mk)
-            else:
-                max_mi_opp.write(i, tf.constant([0.0]))
-        max_mk_opp = max_mk_opp.stack()
-        max_mi_opp = max_mi_opp.stack()
-        lossmk = tf.reduce_sum(tf.multiply(tf.expand_dims(max_mk, 1), max_mk_opp))
-        lossmi = tf.reduce_sum(tf.multiply(tf.expand_dims(max_mi, 1), max_mi_opp))
-        return  lossmk + lossmi
+            aux = tf.gather_nd(m_k[i, :, :], indx_mi) - self.margin_div
+            if aux > 0.0:
+                value_in_mk = aux
+            loss = loss + tf.multiply(max_mi[i], value_in_mk)
+        return loss
+        # m_k = attmap_out[0, :, :, :]
+        # m_i = attmap_out[1, :, :, :]
+        # n = m_k.shape[0]
+        # max_mk = tf.math.reduce_max(m_k, axis=[1, 2])
+        # max_mi = tf.math.reduce_max(m_i, axis=[1, 2])
+        # max_mk_opp = tf.TensorArray(tf.float32, size=n)
+        # max_mi_opp = tf.TensorArray(tf.float32, size=n)
+        # for i in range(n):
+        #     indx_mk = tf.where(m_k[i, :, :] == max_mk[i])
+        #     value_in_mi = tf.gather_nd(m_i[i, :, :], indx_mk) - self.margin_div
+        #     if value_in_mi > 0.0:
+        #         max_mk_opp.write(i, value_in_mi)
+        #     else:
+        #         max_mk_opp.write(i, tf.constant([0.0]))
+        #
+        #     indx_mi = tf.where(m_i[i, :, :] == max_mi[i])
+        #     value_in_mk = tf.gather_nd(m_k[i, :, :], indx_mi) - self.margin_div
+        #     if value_in_mi > 0.0:
+        #         max_mi_opp.write(i, value_in_mk)
+        #     else:
+        #         max_mi_opp.write(i, tf.constant([0.0]))
+        # max_mk_opp = max_mk_opp.stack()
+        # max_mi_opp = max_mi_opp.stack()
+        # lossmk = tf.reduce_sum(tf.multiply(tf.expand_dims(max_mk, 1), max_mk_opp))
+        # lossmi = tf.reduce_sum(tf.multiply(tf.expand_dims(max_mi, 1), max_mi_opp))
+        # return  lossmk + lossmi
 
         #m_k_tilt = tf.multiply(max_mk, max_mi - self.margin_div) #tf.math.maximum(m_k - self.margin_div, 0)
         #return tf.tensordot(tf.reshape(m_i,[-1]), tf.reshape(m_k_tilt, [-1]), 1)
