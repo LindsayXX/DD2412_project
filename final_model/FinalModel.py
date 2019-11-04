@@ -43,8 +43,21 @@ class FinalModel(Model):
         self.kmeans = Kmeans(clusters_n=2, iterations=10)
         self.average_pooling_0 = Average_Pooling()
         self.average_pooling_1 = Average_Pooling()
+        """
         self.fc_0 = Fc(CHANNELS)
         self.fc_1 = Fc(CHANNELS)
+        """
+        self.initializer = tf.keras.initializers.glorot_normal()
+        self.fc1_1 = tf.keras.layers.Dense(512, input_shape=(512,), activation="relu", kernel_initializer=self.initializer)
+        self.fc1_2 = tf.keras.layers.Dense(512, input_shape=(512,), activation="relu", kernel_initializer=self.initializer)
+
+        self.fc2_1 = tf.keras.layers.Dense(512, activation="sigmoid", kernel_initializer=self.initializer)
+        self.fc2_2 = tf.keras.layers.Dense(512, activation="sigmoid", kernel_initializer=self.initializer)
+
+        self.bn0 = tf.keras.layers.BatchNormalization()
+        self.bn1 = tf.keras.layers.BatchNormalization()
+
+
         self.weighted_sum0 = WeightedSum()
         self.weighted_sum1 = WeightedSum()
         self.c_init = tf.random_normal_initializer(0, 0.01)
@@ -92,32 +105,44 @@ class FinalModel(Model):
 
     def call(self, x, phi):
 
-        # # MULTI ATTENTION SUBNET
-        # # x will be image_batch of shape (BATCH,448,448,3)
-        # #print("VGG")
-        # feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
-        # #print(feature_map.shape)
-        # #print("KMEANS")
-        # batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
-        # #print("AVR POOL")
-        # #print(batch_cluster0.shape, batch_cluster1.shape)
-        # p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
-        # p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
-        # #print("FC")
-        # a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
-        # a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
-        # #print("WS")
-        # m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
-        # m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
+        # MULTI ATTENTION SUBNET
+        # x will be image_batch of shape (BATCH,448,448,3)
+        print("VGG")
+        feature_map = self.vgg_features_initial(x)  # gives an output of shape (BATCH,14,14,512)
+        print(feature_map.shape)
+        print("KMEANS")
+        batch_cluster0, batch_cluster1 = self.kmeans(feature_map) # gives two lists containing tensors of shape (512,14,14)
+        print("AVR POOL")
+        print(batch_cluster0.shape, batch_cluster1.shape)
+        p1 = self.average_pooling_0(batch_cluster0)  # gives a list of length=batch_size containing tensors of shape (512,)
+        p2 = self.average_pooling_1(batch_cluster1)  # gives a list of length=batch_size containing tensors of shape (512,)
+        print("FC")
 
-        m0 = tf.convert_to_tensor(np.load("im0.npy"))
-        m1 = tf.convert_to_tensor(np.load("im1.npy"))
+        """
+        a0 = self.fc_0(p1)  # gives tensor of shape (BATCH,512)
+        a1 = self.fc_1(p2)  # gives tensor of shape (BATCH,512)
+        """
+        out0 = self.fc1_1(p1)
+        out1 = self.fc1_2(p2)
+
+        out0 = self.fc2_1(out0)
+        out1 = self.fc2_2(out1)
+
+        a0 = self.bn0(out0)
+        a1 = self.bn1(out1)
+
+        print("WS")
+        m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
+        m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
+
+        # m0 = tf.convert_to_tensor(np.load("im0.npy"))
+        # m1 = tf.convert_to_tensor(np.load("im1.npy"))
         attmap_out = tf.TensorArray(tf.float32, 2)
         attmap_out.write(0, m0)
         attmap_out.write(1, m1)
         attmap_out = attmap_out.stack()
 
-        #print("CROP")
+        print("CROP")
         #CROPPING SUBNET
         mask1 = self.crop_net0(m0) #shape(BATCH,14,14)
         mask2 = self.crop_net1(m1) #shape(BATCH,14,14)
@@ -129,7 +154,7 @@ class FinalModel(Model):
         attention_crop_out = attention_crop_out.stack()
         #gives 3 tensors of size (batch,448,448,3)
 
-        #print("RESHAPE")
+        print("RESHAPE")
         #JOINT FEATURE LEARNING SUBNE
         #resizing the outputs of cropping network
         full_image = self.reshape_global(x)
