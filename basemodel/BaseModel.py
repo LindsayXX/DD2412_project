@@ -1,6 +1,6 @@
-import tensorflow as tf
 from dataloader import DataSet
 import os
+import tensorflow as tf
 
 IMG_SIZE = 448
 BATCH_SIZE = 32
@@ -47,37 +47,23 @@ def loss_baseline(score, labels):
     return tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=score))
 
 
-@tf.function
-def test_step(images, labels):
-    scores = model(images, phi)
-    t_loss = loss_baseline(scores, labels)
-    t_pred = tf.math.argmax(scores, axis=1)
-
-    test_loss(t_loss)
-    test_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(t_pred, -1))
-
-
-@tf.function
-def train_step(images, labels):
-    with tf.GradientTape() as tape:
-        scores = model(images, phi)
-        loss = loss_baseline(scores, labels)
-    gradients = tape.gradient(loss, model.trainable_variables)  # ti einai trainable variables?
-    # print(gradients)
-    opt.apply_gradients(zip(gradients, model.trainable_variables))
-    y_pred = tf.math.argmax(scores, axis=1)
-
-    train_loss(loss)
-    train_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(y_pred, -1))
-
 
 if __name__ == '__main__':
-    # tf.compat.v1.enable_eager_execution()
+    #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    #import tensorflow as tf
+    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
     path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
     bird_data = DataSet(path_root)
-    train_ds, phi = bird_data.load(GPU=True, train=True, batch_size=32)
-    test_ds, useless_semantic = bird_data.load(GPU=True, train=False, batch_size=32)
+    phi = bird_data.get_phi()
+    train_ds, test_ds = bird_data.load_gpu()
+    #train_ds = bird_data.load(GPU=True, train=True, batch_size=32)
+    #test_ds = bird_data.load(GPU=True, train=False, batch_size=32)
+    #train_ds = tf.data.TFRecordDataset('train_ds.tfrecord')
+    #test_ds = tf.data.TFRecordDataset('test_ds.tfrecord')
     # image_batch, label_batch = next(iter(train_ds))
+
+    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+    tf.compat.v1.enable_eager_execution()
 
     model = BaseModel(200, 28)
     opt = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)  # or SGDW with weight decay
@@ -91,10 +77,35 @@ if __name__ == '__main__':
     test_loss = tf.keras.metrics.Mean(name='test_loss')
     test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
 
+
+    @tf.function
+    def test_step(images, labels):
+        scores = model(images, phi)
+        t_loss = loss_baseline(scores, labels)
+        t_pred = tf.math.argmax(scores, axis=1)
+
+        test_loss(t_loss)
+        test_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(t_pred, -1))
+
+
+    @tf.function
+    def train_step(images, labels):
+        with tf.GradientTape() as tape:
+            scores = model(images, phi)
+            loss = loss_baseline(scores, labels)
+        gradients = tape.gradient(loss, model.trainable_variables)  # ti einai trainable variables?
+        # print(gradients)
+        opt.apply_gradients(zip(gradients, model.trainable_variables))
+        y_pred = tf.math.argmax(scores, axis=1)
+
+        train_loss(loss)
+        train_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(y_pred, -1))
+
     train_loss_results = []
     train_accuracy_results = []
     EPOCHS = 30
     CHECKEPOCHS = 1
+    print("Here is begins")
     for epoch in range(EPOCHS):
         for images, labels in train_ds:
             train_step(images, labels)
@@ -102,17 +113,18 @@ if __name__ == '__main__':
         #for test_images, test_labels in test_ds:
             #test_step(test_images, test_labels)
 
-        #tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}%\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
+        tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
 
         ckpt.step.assign_add(1)
         if int(ckpt.step) % CHECKEPOCHS == 0:
             save_path = manager.save()
             with open(path_root + '/log.txt', 'a') as temp:
-                temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}%\n'.format(
+                temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(
                     epoch + 1, train_loss.result(), train_accuracy.result()))
                 #, test_loss.result(), test_accuracy.result()))
 
     for test_images, test_labels in test_ds:
         test_step(test_images, test_labels)
+    tf.print('Test_Loss: {}, Test_Accuracy: {}\n'.format(test_loss.result(), test_accuracy.result()))
     with open(path_root + '/log.txt', 'a') as temp:
-        temp.write('Test_Loss: {}, Test_Accuracy: {}%\n'.format(test_loss.result(), test_accuracy.result()))
+        temp.write('Test_Loss: {}, Test_Accuracy: {}\n'.format(test_loss.result(), test_accuracy.result()))

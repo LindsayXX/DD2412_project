@@ -1,13 +1,14 @@
-import tensorflow as tf
-import pathlib
-import numpy as np
 import os
-from PIL import Image
-import skimage
+#os.environ["CUDA_VISIBLE_DEVICES"]="-1"
+import tensorflow as tf
+import numpy as np
+#from PIL import Image
+#import skimage
 import tensorflow_datasets as tfds
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from tensorflow.python.keras import backend as K
 from tqdm import tqdm
+import pathlib
 
 BATCH_SIZE = 32
 IMG_HEIGHT = 448
@@ -18,14 +19,16 @@ NUM_CLASSES = 200
 class DataSet:
 
     def __init__(self, path_root):
+        self.data_dir = pathlib.Path(path_root + '/CUB_200_2011/CUB_200_2011/images')
         self.image_path = path_root + "/CUB_200_2011/CUB_200_2011/images/"
         self.image_name_path = path_root + "/CUB_200_2011/CUB_200_2011/images.txt"
-        self.semantics_path2 = path_root + f"/CUB_200_2011/CUB_200_2011/attributes/image_attribute_labels.txt"
+        self.semantics_path2 = path_root + "/CUB_200_2011/CUB_200_2011/attributes/image_attribute_labels.txt"
         self.semantics_path1 = path_root + "/CUB_200_2011/attributes.txt"
-        self.split_path = path_root + f"/CUB_200_2011/CUB_200_2011/train_test_split.txt"
+        self.split_path = path_root + "/CUB_200_2011/CUB_200_2011/train_test_split.txt"
         self.class_path = path_root + "/CUB_200_2011/CUB_200_2011/classes.txt"
         self.label_path = path_root + "/CUB_200_2011/CUB_200_2011/image_class_labels.txt"
         self.AUTOTUNE = tf.data.experimental.AUTOTUNE
+        self.image_label = {}
 
     def load(self, GPU=True, train=True, batch_size=32):#discard
         index = self.get_split()
@@ -34,27 +37,32 @@ class DataSet:
         else:
             n = 1000
         if train:
-            phi = self.get_phi(index)# Φ, semantic matrix, 28*200
+            #phi = self.get_phi(index)# Φ, semantic matrix, 28*200
             labels = self.get_label(n, index, set=0)
             images = self.get_image(n, index, set=0)
         else:
             labels = self.get_label(n, index, set=1)
             images = self.get_image(n, index, set=1)
-            phi = self.get_semantic(n, index, set=1) # φ, semantic features 28, n
+            #phi = self.get_semantic(n, index, set=1) # φ, semantic features 28, n
 
-        ds = tf.data.Dataset.from_tensor_slices((images, np.asarray(labels))).shuffle(1000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        ds = tf.data.Dataset.from_tensor_slices((images, np.asarray(labels))).cache().shuffle(1000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
-        return ds, tf.convert_to_tensor(phi, dtype=tf.float32)
+        return ds
 
-    def prepare_for_training(self, ds, cache=True, shuffle_buffer_size=1000):
+    def prepare_for_training(self, ds, cache=True, batch_size=32):
         # This is a small dataset, only load it once, and keep it in memory.
         # use `.cache(filename)` to cache preprocessing work for datasets that don't
         # fit in memory.
+        '''
         if cache:
             if isinstance(cache, str):
                 ds = ds.cache(cache)
             else:
                 ds = ds.cache()
+        '''
+        ds = ds.cache().shuffle(5000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+
+        return ds
 
     def get_label(self, n, index, set=0):
         file = open(self.label_path, "r")
@@ -66,7 +74,7 @@ class DataSet:
 
         return label_new
 
-    def decode_img(self,img):
+    def decode_img(self, img):
         # convert the compressed string to a 3D uint8 tensor
         img = tf.image.decode_jpeg(img, channels=3)
         # Use `convert_image_dtype` to convert to floats in the [0,1] range.
@@ -105,7 +113,6 @@ class DataSet:
             else:
                 attributes[info[0]] = [int(id)]
 
-
         return attributes
 
     def get_semantic(self, n, index, set=0, file_path=None):
@@ -140,15 +147,30 @@ class DataSet:
 
         return np.asarray(birds_semantics)
 
-    def get_split(self):
+    def get_split(self, index=True):
         file = open(self.split_path, "r")
-        set = file.readlines()
-        for i in range(len(set)):#len(set)):
-            set[i] = int(set[i].split(' ')[1].split('\n')[0])
+        ids = file.readlines()
+        if index:
+            for i in range(len(ids)):#len(set)):
+                ids[i] = int(ids[i].split(' ')[1].split('\n')[0])
+            return ids
+        else:
+            images_names = open(self.image_name_path, "r")
+            images = images_names.readlines()
+            print("splitting...")
+            train_list = []
+            test_list = []
+            for i in range(len(ids)):#len(set)):
+                set = int(ids[i].split(' ')[1].split('\n')[0])
+                if set == 0:
+                    train_list.append(self.image_path + images[i].split(' ')[1].split('\n')[0])
+                else:
+                    test_list.append(self.image_path + images[i].split(' ')[1].split('\n')[0])
 
-        return set
+            return tf.data.Dataset.from_tensor_slices(train_list).cache(), tf.data.Dataset.from_tensor_slices(test_list).cache()
 
-    def get_phi(self, index):
+    def get_phi(self):
+        index = self.get_split(index=True)
         labels = self.get_label(len(index), index, set=0)
         semantics = self.get_semantic(len(index), index, set=0)
         phi = np.zeros((semantics[0].shape[0], max(labels)+1))
@@ -158,22 +180,60 @@ class DataSet:
         for j in range(phi.shape[0]):
             phi[:, j] = phi[:, j] / lcount[j]
 
-        return phi
+        return tf.convert_to_tensor(phi, dtype=tf.float32)
 
-    '''
-    def loadtfds(self, datas{x:labels.count(x) for x in labels}et_name, batch_size=32):
-        #Load data from tensorflow_datasets
-        raw_train, raw_test = tfds.load(name=dataset_name, split=["train", "test"])
-        image_train = image_train.map(tf.image.resize(image, (IMG_WIDTH, IMG_HEIGHT)) for image in image_train)
-        image_test = image_test.map(tf.image.resize(image, (IMG_WIDTH, IMG_HEIGHT)) for image in image_test)
-        index = self.get_split()
-        semantic_train = self.get_semantic(index, set=0)
-        semantic_test = self.get_split(index, set=1)
-        train = tf.data.Dataset.zip((image_train, tf.data.Dataset.from_tensor_slices(semantic_train)))
-        ds_train = train.shuffle(1000).batch(batch_size).prefetch(10)  # tf.data.experimental.AUTOTUNE
-        test = tf.data.Dataset.zip((image_test, tf.data.Dataset.from_tensor_slices(semantic_test)))
-        ds_test = test.shuffle(1000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+    def process_path(self, file_path):
+        parts = tf.strings.split(file_path, '/')
+        # The second to last is the class-directory
+        label = int(tf.strings.split(parts[-2], '.')[0])# == self.CLASS_NAMES
+        #label = np.where(label=True)[0]
+        # load the raw data from the file as a string
+        img = tf.io.read_file(file_path)
+        img = self.decode_img(img)
+
+        return img, label
+
+    def load_gpu(self, autotune=4):
+        # Set `num_parallel_calls` so multiple images are loaded/processed in parallel.
+        self.CLASS_NAMES = np.unique(
+            np.array([item.name for item in self.data_dir.glob('[!.]*') if item.name != "LICENSE.txt"]))
+        train_list_ds, test_list_ds = self.get_split(index=False)
+        #dataset = train_list_ds.interleave(tf.data.TFRecordDataset, cycle_length=FLAGS.num_parallel_reads, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        train_ds = train_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
+        test_ds = test_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
+        for image, label in train_ds.take(1):
+            print("Image shape: ", image.numpy().shape)
+            print("Label: ", label.numpy())
+        train = self.prepare_for_training(train_ds)
+        test = self.prepare_for_training(test_ds)
+
+        return train, test
+
+    def loadtfds(self, dataset_name, batch_size=32): #not working
+        #  Load data from tensorflow_datasets
+        raw_train, raw_test = tfds.load(name=dataset_name, split=["train", "test"], batch_size=32)
+        train = raw_train.map(lambda x: tf.image.resize(x['image'], (IMG_WIDTH, IMG_HEIGHT)))
+        test = raw_test.map(lambda x: tf.image.resize(x['image'], (IMG_WIDTH, IMG_HEIGHT)))
+        ds_train = train.shuffle(1000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        ds_test = test.shuffle(1000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
         # for batch in ds_train:
         #   ...
         return ds_train, ds_test
-    '''
+
+
+if __name__ == '__main__':
+    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+    path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
+    bird_data = DataSet(path_root)
+    #train_ds = bird_data.load(GPU=True, train=True, batch_size=32)
+    #ds_train, ds_test = bird_data.loadtfds('caltech_birds2011')
+    ds_train, ds_test = bird_data.load_gpu()
+    """
+    filename1 = 'train_ds.tfrecord'
+    writer1 = tf.data.experimental.TFRecordWriter(filename1)
+    writer1.write(train_ds)
+    #read
+    #raw_dataset = tf.data.TFRecordDataset(filenames)
+    """
+    image_batch, label_batch = next(iter(ds_train))
+
