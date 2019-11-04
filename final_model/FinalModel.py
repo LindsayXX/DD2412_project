@@ -225,7 +225,7 @@ def test_step(model, images, loss_fun):
 
 if __name__ == '__main__':
     database = DataSet("/Users/stella/Downloads/")
-    DS, PHI = database.load(GPU=False, train=True, batch_size=BATCH_SIZE) #image_batch, label_batch
+    DS, PHI = database.load_gpu(GPU=False, train=True, batch_size=BATCH_SIZE) #image_batch, label_batch
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
     train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
