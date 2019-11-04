@@ -32,7 +32,7 @@ class Scores(layers.Layer):
         phi_samples = tf.TensorArray(tf.float32, size=n_theta)
         for i in range(n_theta):  # size of theta is (512,)
             theta = thetas[i]
-            out = tf.matmul(tf.transpose(tf.reshape(theta,[512,1])), self.W)  # size of W is (512,28) and shape of out will be (1,28)
+            out = tf.matmul(tf.transpose(tf.reshape(theta, [512, 1])), self.W)  # size of W is (512,28) and shape of out will be (1,28)
             score = tf.matmul(out, phi)  # shape of score is (1,1)
             phi_samples.write(i, out)
             scores_samples.write(i, tf.reshape(score, [1]))  # I am just reshaping it to get rid of one extra redundant dimension

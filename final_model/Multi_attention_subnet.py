@@ -11,15 +11,13 @@ IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 IMG_HEIGHT = 448
 IMG_WIDTH = 448
-
+N_CHANNELS = 512
 
 class VGG_feature(layers.Layer):
     '''
     A pre-trained VGG19 network that extracts the features out of images
-
     Args:
          images = tensor of shape (batch_size, image_size, image_size, 3)
-
     Returns:
          features = tensor of shape (batch_size, width, height, channels)
     '''
@@ -36,10 +34,8 @@ class VGG_feature(layers.Layer):
 class Kmeans(layers.Layer):
     '''
         Clusters up the generated Feature Map into 2 clusters
-
         Args:
             receives a (batch_size,14,14,512) tensor of batch of features
-
         Returns:
             two lists, each one contains 32 tensors of shape (512,14,14)
         '''
@@ -78,26 +74,39 @@ class Kmeans(layers.Layer):
         return assignments
 
     def get_max_pixels(self, batch):
-        max_batch = tf.TensorArray(tf.int64, size=batch.shape[0])
-        for i in range(batch.shape[0]):
-            image_batch = batch[i, :, :, :]
-            max_pix = tf.TensorArray(tf.int64, size=batch.shape[-1])
-            for channel in range(image_batch.shape[2]):
-                image = image_batch[:, :, channel]
-                maximum = tf.math.reduce_max(image)
-                x = tf.where(image == maximum)
-                if x.shape[0] == 1:
-                    max_pix.write(channel, x) #max_pix.append(x)
-                else:
-                    # continue
-                    choice = tf.dtypes.cast(tf.random.uniform((1, 1), 0, x.shape[0]), tf.int64)[0][0]
-                    max_pix.write(channel, tf.expand_dims(x[choice], 0)) #.append(tf.expand_dims(x[choice], 0))
-            max_pix = max_pix.stack()
-            max_batch.write(i, max_pix)
-        max_batch = tf.reshape(max_batch.stack(), [batch.shape[0], batch.shape[-1], 2])
-        return max_batch
+        batch_t = tf.transpose(batch, [0, 3, 1, 2])
 
-    def call(self,feature_batch):
+        max1 = tf.reduce_max(batch_t, axis=2)
+        arg1 = tf.argmax(max1, axis=2)
+        arg1 = tf.expand_dims(arg1, 2)
+
+        max0 = tf.reduce_max(batch_t, axis=3)
+        arg0 = tf.argmax(max0, axis=2)
+        arg0 = tf.expand_dims(arg0, 2)
+
+        max_pixels = tf.concat([arg1, arg0], axis=2)
+        return max_pixels
+
+        # max_batch = tf.TensorArray(tf.int64, size=batch.shape[0])
+        # for i in range(batch.shape[0]):
+        #     image_batch = batch[i, :, :, :]
+        #     max_pix = tf.TensorArray(tf.int64, size=batch.shape[-1])
+        #     for channel in range(image_batch.shape[2]):
+        #         image = image_batch[:, :, channel]
+        #         maximum = tf.math.reduce_max(image)
+        #         x = tf.where(image == maximum)
+        #         if x.shape[0] == 1:
+        #             max_pix.write(channel, x) #max_pix.append(x)
+        #         else:
+        #             # continue
+        #             choice = tf.dtypes.cast(tf.random.uniform((1, 1), 0, x.shape[0]), tf.int64)[0][0]
+        #             max_pix.write(channel, tf.expand_dims(x[choice], 0)) #.append(tf.expand_dims(x[choice], 0))
+        #     max_pix = max_pix.stack()
+        #     max_batch.write(i, max_pix)
+        # max_batch = tf.reshape(max_batch.stack(), [batch.shape[0], batch.shape[-1], 2])
+        # return max_batch
+
+    def call(self, feature_batch):
         max_points = self.get_max_pixels(feature_batch)
         n_max_points = max_points.shape[0]
         batch_cluster0 = tf.TensorArray(tf.float32, size=n_max_points)
@@ -127,7 +136,31 @@ class Kmeans(layers.Layer):
         batch_cluster1 = tf.transpose(batch_cluster1.stack(), perm=[0, 2, 3, 1])
         return batch_cluster0, batch_cluster1
 
+# this is a new version of Average Pooling
+class Average_Pooling(layers.Layer):
+    '''
+    Args:
+         tesnor (32,14,14,512)
+    Returns:
+        tensor (32,512)
 
+    if you think its wrong,we canuse a layer from keras instead:
+    https://www.tensorflow.org/api_docs/python/tf/keras/layers/AveragePooling2D
+
+    '''
+
+    def __init__(self):
+        super( Average_Pooling, self).__init__()
+
+    def call(self, cluster):
+        out = tf.math.reduce_mean(cluster, axis=(1, 2))
+        return out
+
+#if you think its wrong,we canuse a layer from keras instead:
+#https://www.tensorflow.org/api_docs/python/tf/keras/layers/AveragePooling2D
+
+
+"""
 class Average_Pooling(layers.Layer):
     '''
     Args:
@@ -137,7 +170,7 @@ class Average_Pooling(layers.Layer):
     '''
 
     def __init__(self):
-        super( Average_Pooling, self).__init__()
+        super(Average_Pooling, self).__init__()
 
     def call(self, cluster):
         n_cluster = cluster.shape[0]
@@ -161,7 +194,7 @@ class Average_Pooling_basemodel(layers.Layer):
     '''
 
     def __init__(self):
-        super( Average_Pooling_basemodel, self).__init__()
+        super(Average_Pooling_basemodel, self).__init__()
 
     def call(self, cluster):
         cluster = tf.unstack(cluster, axis=0)
@@ -171,10 +204,12 @@ class Average_Pooling_basemodel(layers.Layer):
             p = tf.math.reduce_sum(b, axis=(0, 1))/(H*W)
             p_batch.append(p)
         return p_batch
+        
+        
+"""
 
 class Fc(layers.Layer):
     '''
-
     As a part of the Multi-Attention subnet it will return the weight vector
         Args:
             a list of  32(=batch_size) tensors of size (512,)
@@ -188,46 +223,73 @@ class Fc(layers.Layer):
         self.fc1 = tf.keras.layers.Dense(input_shape, input_shape=(input_shape,), activation="relu", kernel_initializer=self.initializer)
         self.fc2 = tf.keras.layers.Dense(input_shape, activation="sigmoid", kernel_initializer=self.initializer)
         self.bn = tf.keras.layers.BatchNormalization()
+        self.a_batch = tf.TensorArray(tf.float32, size=BATCH_SIZE)
 
     def call(self, p_batch):
         n_p_batch = p_batch.shape[0]
-        a_batch = tf.TensorArray(tf.float32, size=n_p_batch)
+        #a_batch = tf.TensorArray(tf.float32, size=n_p_batch)
         for i in range(n_p_batch):
             p = p_batch[i]
             p = tf.expand_dims(p, 0)
             out = self.fc1(p)
             out = self.fc2(out)
             a = self.bn(out)
-            a_batch.write(i, a)
-        a_batch = tf.squeeze(a_batch.stack())
+            self.a_batch.write(i, a)
+        a_batch = tf.squeeze(self.a_batch.stack())
         return a_batch
 
 
 class WeightedSum(layers.Layer):
     """
     Generates the final attention maps focused on certain parts of the image.
-
     Args:
-        a tensor of shape()32,512
+        feature map (32,14,14,512)  and a tensor (weight vector) of shape(32,512)
+    Returns:
+        a tensor of size (32,14,14). We sum along axis=3 (that is 512) using the weight vector.
+    """
+
+    def __init__(self):
+        super(WeightedSum, self).__init__()
+
+    def call(self, feature_batch, weight_vector):
+
+        # expand dims twice to make the weight vector to be of shape ([32, 1, 1, 512])
+        weight_vector = tf.expand_dims(weight_vector, axis=1)
+        weight_vector = tf.expand_dims(weight_vector, axis=2)
+
+        product = tf.math.multiply(feature_batch, weight_vector) # product shape is (32,14,14,512)
+        summed_product = tf.math.reduce_sum(product, axis=3)  # summed product shape is (32,14,14)
+        denominator = tf.math.reduce_sum(weight_vector, axis=3) # will be dividing by this (shape=(32,1,1))
+
+        return summed_product/denominator
+
+'''
+class WeightedSum(layers.Layer):
+    """
+    Generates the final attention maps focused on certain parts of the image.
+    Args:
+        a tensor of shape(32,512)
     Returns:
         a tensor of size (32,14,14)
     """
 
     def __init__(self):
         super(WeightedSum, self).__init__()
+        self.attention_maps_batch = tf.TensorArray(tf.float32, size=BATCH_SIZE)
 
     def call(self, batch, a_batch):
         n_batch = batch.shape[0]
-        attention_maps_batch = tf.TensorArray(tf.float32, size=n_batch )
+        #attention_maps_batch = tf.TensorArray(tf.float32, size=n_batch)
         for b in range(n_batch):
             image = tf.zeros((batch.shape[1], batch.shape[2]))
             for c in range(batch.shape[-1]):
                 w_image = tf.multiply(batch[b, :, :, c], a_batch[b, c])
                 image += w_image
             image /= tf.math.reduce_max(image)
-            attention_maps_batch.write(b, image)
-        attention_maps_batch = attention_maps_batch.stack()
+            self.attention_maps_batch.write(b, image)
+        attention_maps_batch = self.attention_maps_batch.stack()
         return attention_maps_batch
+'''
 
 import pickle
 
