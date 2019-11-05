@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 #from PIL import Image
 #import skimage
-import tensorflow_datasets as tfds
+#import tensorflow_datasets as tfds
 #import matplotlib.pyplot as plt
 from tensorflow.python.keras import backend as K
 from tqdm import tqdm
@@ -53,14 +53,14 @@ class DataSet:
         # This is a small dataset, only load it once, and keep it in memory.
         # use `.cache(filename)` to cache preprocessing work for datasets that don't
         # fit in memory.
-        '''
+        """
         if cache:
             if isinstance(cache, str):
                 ds = ds.cache(cache)
             else:
                 ds = ds.cache()
-        '''
-        ds = ds.cache().shuffle(5000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        """
+        ds = ds.shuffle(1000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return ds
 
@@ -186,14 +186,13 @@ class DataSet:
         parts = tf.strings.split(file_path, '/')
         # The second to last is the class-directory
         label = int(tf.strings.split(parts[-2], '.')[0])# == self.CLASS_NAMES
-        #label = np.where(label=True)[0]
         # load the raw data from the file as a string
         img = tf.io.read_file(file_path)
         img = self.decode_img(img)
 
         return img, label
 
-    def load_gpu(self, autotune=4):
+    def load_gpu(self, batch_size=32):#autotune=4
         # Set `num_parallel_calls` so multiple images are loaded/processed in parallel.
         self.CLASS_NAMES = np.unique(
             np.array([item.name for item in self.data_dir.glob('[!.]*') if item.name != "LICENSE.txt"]))
@@ -204,8 +203,8 @@ class DataSet:
         for image, label in train_ds.take(1):
             print("Image shape: ", image.numpy().shape)
             print("Label: ", label.numpy())
-        train = self.prepare_for_training(train_ds)
-        test = self.prepare_for_training(test_ds)
+        train = self.prepare_for_training(train_ds, batch_size)
+        test = self.prepare_for_training(test_ds, batch_size)
 
         return train, test
 
@@ -227,7 +226,7 @@ if __name__ == '__main__':
     bird_data = DataSet(path_root)
     #train_ds = bird_data.load(GPU=True, train=True, batch_size=32)
     #ds_train, ds_test = bird_data.loadtfds('caltech_birds2011')
-    ds_train, ds_test = bird_data.load_gpu()
+    ds_train, ds_test = bird_data.load_gpu(batch_size=4)
     """
     filename1 = 'train_ds.tfrecord'
     writer1 = tf.data.experimental.TFRecordWriter(filename1)

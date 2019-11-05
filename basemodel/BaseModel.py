@@ -17,7 +17,7 @@ class BaseModel(tf.keras.Model):
         # self.vgg_features = VGG_feature()
         # self.average_pooling = Average_Pooling_basemodel()
         # self.score = Scores()
-        self.vgg_features = tf.keras.applications.VGG19(input_shape=(IMG_SIZE / 2, IMG_SIZE / 2, 3), include_top=False,
+        self.vgg_features = tf.keras.applications.VGG19(input_shape=(IMG_SIZE/2, IMG_SIZE/2, 3), include_top=False,
                                                         weights='imagenet')
         self.vgg_features.trainable = False
         self.gp = tf.keras.layers.GlobalAveragePooling2D()
@@ -51,19 +51,18 @@ def loss_baseline(score, labels):
 if __name__ == '__main__':
     #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     #import tensorflow as tf
+    tf.compat.v1.enable_eager_execution()
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
     path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
     bird_data = DataSet(path_root)
     phi = bird_data.get_phi()
-    train_ds, test_ds = bird_data.load_gpu()
-    #train_ds = bird_data.load(GPU=True, train=True, batch_size=32)
-    #test_ds = bird_data.load(GPU=True, train=False, batch_size=32)
-    #train_ds = tf.data.TFRecordDataset('train_ds.tfrecord')
-    #test_ds = tf.data.TFRecordDataset('test_ds.tfrecord')
-    # image_batch, label_batch = next(iter(train_ds))
+    train_ds, test_ds = bird_data.load_gpu(batch_size=4)
+    #train_ds = bird_data.load(GPU=False, train=True, batch_size=32)
+    #test_ds = bird_data.load(GPU=False, train=False, batch_size=32)
+    #image_batch, label_batch = next(iter(train_ds))
 
-    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
-    tf.compat.v1.enable_eager_execution()
+    #print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+    #tf.compat.v1.enable_eager_execution()
 
     model = BaseModel(200, 28)
     opt = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)  # or SGDW with weight decay
@@ -105,12 +104,14 @@ if __name__ == '__main__':
     train_accuracy_results = []
     EPOCHS = 30
     CHECKEPOCHS = 1
-    print("Here is begins")
+    print("Here it begins")
     for epoch in range(EPOCHS):
         for images, labels in train_ds:
+        #images, labels = next(iter(train_ds))
             train_step(images, labels)
 
         #for test_images, test_labels in test_ds:
+            #test_images, test_labels = next(iter(test_ds))
             #test_step(test_images, test_labels)
 
         tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
@@ -121,10 +122,11 @@ if __name__ == '__main__':
             with open(path_root + '/log.txt', 'a') as temp:
                 temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(
                     epoch + 1, train_loss.result(), train_accuracy.result()))
-                #, test_loss.result(), test_accuracy.result()))
-
+                #, test_loss.result(), test_accuracy.result())) 
+    """
     for test_images, test_labels in test_ds:
         test_step(test_images, test_labels)
     tf.print('Test_Loss: {}, Test_Accuracy: {}\n'.format(test_loss.result(), test_accuracy.result()))
     with open(path_root + '/log.txt', 'a') as temp:
         temp.write('Test_Loss: {}, Test_Accuracy: {}\n'.format(test_loss.result(), test_accuracy.result()))
+    """
