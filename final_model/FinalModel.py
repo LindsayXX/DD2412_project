@@ -202,7 +202,7 @@ class FinalModel(Model):
                global_phi, local0_phi, local1_phi, y_pred, self.C
 
 
-# @tf.function
+@tf.function
 def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun):
     with tf.GradientTape() as tape:
         m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, global_phi, local0_phi, local1_phi, y_pred, C = model(image_batch, PHI)
@@ -211,8 +211,9 @@ def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun):
     gradients = tape.gradient(loss, model.trainable_variables)
     opt_fun.apply_gradients(zip(gradients, model.trainable_variables))
     print("Current TrainLoss: {}".format(loss))
-    return loss
-
+    train_loss(loss)
+    print(labels.shape, y_pred.shape)
+    train_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(y_pred, -1))
 
 # test the model
 # @tf.function
@@ -225,32 +226,57 @@ def test_step(model, images, loss_fun):
 # testing by running
 
 if __name__ == '__main__':
-    database = DataSet("/Volumes/Watermelon")
+
+    tf.compat.v1.enable_eager_execution()
+    gpu = tf.config.experimental.list_physical_devices('GPU')
+    print("Num GPUs Available: ", len(gpu))
+    if gpu:
+        tf.config.experimental.set_memory_growth(gpu, True)
+    path_root = os.path.abspath(os.path.dirname(__file__))
+    database = DataSet("/Volumes/Watermelon")#path_root)
     PHI = database.get_phi()
-    DS, DS_test = database.load_gpu(batch_size=5)  # image_batch, label_batch
+    DS, DS_test = database.load_gpu(batch_size=32)  # image_batch, label_batch
+    modelaki = FinalModel()
+
+    loss_fun = Loss().final_loss
+    opt_fun = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
+
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt_fun, net=modelaki)
+    manager = tf.train.CheckpointManager(ckpt, path_root + '/tf_ckpts',
+                                         max_to_keep=3)  # keep only the three most recent checkpoints
+    ckpt.restore(manager.latest_checkpoint)  # pickup training from where you left off
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
-    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
+    train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
     test_loss = tf.keras.metrics.Mean(name='test_loss')
-    test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
+    test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
-    modelaki = FinalModel()
     # m0, m1 = modelaki.call(image_batch)
 
-    EPOCHS = 5
+    EPOCHS = 50
+    CHECKEPOCHS = 1
 
     # train_loss = tf.keras.metrics.Mean(name='train_loss')
-    loss_fun = Loss().final_loss
-    opt_fun = opt.Adam()
     # image_batch, label_batch = next(iter(DS))
     print('Here it begins!')
     for epoch in range(EPOCHS):
+        train_loss_results = []
+        train_accuracy_results = []
         for images, labels in DS:
             if images.shape[0] == BATCH_SIZE:
-                train_loss = train_step(modelaki, images, labels, PHI, loss_fun, opt_fun)
-
-        # for test_images, test_labels in test_ds:
-        #    test_step(test_images, test_labels)
+                train_step(modelaki, images, labels, PHI, loss_fun, opt_fun)
+                tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(epoch + 1, train_loss.result(),
+                                                                                 train_accuracy.result()))
+                train_loss_results.append(train_loss.result())
+                train_accuracy_results.append(train_accuracy.result())
+        ckpt.step.assign_add(1)
+        if int(ckpt.step) % CHECKEPOCHS == 0:
+            save_path = manager.save()
+            with open(path_root + '/log.txt', 'a') as temp:
+                temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(
+                    epoch + 1, sum(train_loss_results) / len(train_accuracy_results),
+                    sum(train_accuracy_results) / len(train_accuracy_results)))
+                # , test_loss.result(), test_accuracy.result()))
 
         template = 'Epoch {}, Loss: {}'
         print(template.format(epoch + 1, train_loss))
