@@ -243,6 +243,7 @@ if __name__ == '__main__':
     loss_fun = Loss().final_loss
     opt_fun = opt.Adam()
     # image_batch, label_batch = next(iter(DS))
+    print('Here it begins!')
     for epoch in range(EPOCHS):
         for images, labels in DS:
             if images.shape[0] == BATCH_SIZE:
