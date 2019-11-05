@@ -30,6 +30,7 @@ class BaseModel(tf.keras.Model):
 
     @tf.function
     def call(self, x, phi):
+        print(x.shape)
         resized = tf.image.resize(x, (224, 224))  # δίνει (32,224,224,3)
         features = self.vgg_features(resized)  # δίνει (32,7,7,512)
         global_theta = self.gp(features)  # tensor of shape (32,512)
@@ -52,7 +53,9 @@ if __name__ == '__main__':
     #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     #import tensorflow as tf
     tf.compat.v1.enable_eager_execution()
-    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+    gpu = tf.config.experimental.list_physical_devices('GPU')
+    print("Num GPUs Available: ", len(gpu))
+    tf.config.experimental.set_memory_growth(gpu, True)
     path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
     bird_data = DataSet(path_root)
     # load all imgs
@@ -75,9 +78,9 @@ if __name__ == '__main__':
     ckpt.restore(manager.latest_checkpoint)  # pickup training from where you left off
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
-    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
+    train_accuracy = tf.keras.metrics.CategoricalAccuracy(name='train_accuracy')
     test_loss = tf.keras.metrics.Mean(name='test_loss')
-    test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
+    test_accuracy = tf.keras.metrics.CategoricalAccuracy(name='test_accuracy')
 
 
     @tf.function
@@ -103,28 +106,29 @@ if __name__ == '__main__':
         train_loss(loss)
         train_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(y_pred, -1))
 
-    train_loss_results = []
-    train_accuracy_results = []
-    EPOCHS = 30
+    EPOCHS = 50
     CHECKEPOCHS = 1
     print("Here it begins")
     for epoch in range(EPOCHS):
+        train_loss_results = []
+        train_accuracy_results = []
         for images, labels in train_ds:
         #images, labels = next(iter(train_ds))
             train_step(images, labels)
+            tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
+            train_loss_results.append(train_loss.result())
+            train_accuracy_results.append(train_accuracy.results())
 
         #for test_images, test_labels in test_ds:
             #test_images, test_labels = next(iter(test_ds))
             #test_step(test_images, test_labels)
-
-        tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
 
         ckpt.step.assign_add(1)
         if int(ckpt.step) % CHECKEPOCHS == 0:
             save_path = manager.save()
             with open(path_root + '/log.txt', 'a') as temp:
                 temp.write('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(
-                    epoch + 1, train_loss.result(), train_accuracy.result()))
+                    epoch + 1, sum(train_loss_results)/len(train_accuracy_results), sum(train_accuracy_results)/len(train_accuracy_results)))
                 #, test_loss.result(), test_accuracy.result())) 
     """
     for test_images, test_labels in test_ds:
