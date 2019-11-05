@@ -13,15 +13,13 @@ import numpy as np
 from Classification import Classifier
 from Multi_attention_subnet import VGG_feature, Kmeans, Average_Pooling, Fc, WeightedSum
 from Cropping_subnet import ReShape224, RCN, Crop
-from Joint_feature_learning_subnet import Scores
+from Joint_feature_learning_subnet import Scores, JFL
 from dataloader import DataSet
 import tensorflow.keras.optimizers as opt
 
 from Losses import Loss
 
 # IMG_SIZE = 448
-from src.jointmodel import JFL
-
 CHANNELS = 512
 BATCH_SIZE = 5
 N_CLASSES = 200
