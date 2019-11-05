@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 #from PIL import Image
 #import skimage
-import tensorflow_datasets as tfds
+#import tensorflow_datasets as tfds
 #import matplotlib.pyplot as plt
 from tensorflow.python.keras import backend as K
 from tqdm import tqdm
@@ -28,7 +28,6 @@ class DataSet:
         self.class_path = path_root + "/CUB_200_2011/CUB_200_2011/classes.txt"
         self.label_path = path_root + "/CUB_200_2011/CUB_200_2011/image_class_labels.txt"
         self.AUTOTUNE = tf.data.experimental.AUTOTUNE
-        self.image_label = {}
 
     def load(self, GPU=True, train=True, batch_size=32):#discard
         index = self.get_split()
@@ -49,18 +48,24 @@ class DataSet:
 
         return ds
 
-    def prepare_for_training(self, ds, cache=True, batch_size=32):
+    def prepare_for_training(self, ds, batch_size=32, cache=True):
         # This is a small dataset, only load it once, and keep it in memory.
         # use `.cache(filename)` to cache preprocessing work for datasets that don't
         # fit in memory.
-        '''
+        """
         if cache:
             if isinstance(cache, str):
                 ds = ds.cache(cache)
             else:
                 ds = ds.cache()
-        '''
-        ds = ds.cache().shuffle(5000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        """
+        cache_dir = os.path.join(os.getcwd(), 'cache_dir')
+        try:
+            os.makedirs(cache_dir)
+        except OSError:
+            print('Cache directory already exists')
+        cached = ds.cache(os.path.join(cache_dir, 'cache.temp'))
+        ds = ds.shuffle(1000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return ds
 
@@ -167,7 +172,7 @@ class DataSet:
                 else:
                     test_list.append(self.image_path + images[i].split(' ')[1].split('\n')[0])
 
-            return tf.data.Dataset.from_tensor_slices(train_list).cache(), tf.data.Dataset.from_tensor_slices(test_list).cache()
+            return tf.data.Dataset.from_tensor_slices(train_list), tf.data.Dataset.from_tensor_slices(test_list)#.cache()
 
     def get_phi(self):
         index = self.get_split(index=True)
@@ -186,14 +191,13 @@ class DataSet:
         parts = tf.strings.split(file_path, '/')
         # The second to last is the class-directory
         label = int(tf.strings.split(parts[-2], '.')[0])# == self.CLASS_NAMES
-        #label = np.where(label=True)[0]
         # load the raw data from the file as a string
         img = tf.io.read_file(file_path)
         img = self.decode_img(img)
 
         return img, label
 
-    def load_gpu(self, autotune=4):
+    def load_gpu(self, batch_size=32):#autotune=4
         # Set `num_parallel_calls` so multiple images are loaded/processed in parallel.
         self.CLASS_NAMES = np.unique(
             np.array([item.name for item in self.data_dir.glob('[!.]*') if item.name != "LICENSE.txt"]))
@@ -201,11 +205,11 @@ class DataSet:
         #dataset = train_list_ds.interleave(tf.data.TFRecordDataset, cycle_length=FLAGS.num_parallel_reads, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         train_ds = train_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
         test_ds = test_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
-        for image, label in train_ds.take(1):
+        train = self.prepare_for_training(train_ds, batch_size)
+        test = self.prepare_for_training(test_ds, batch_size)
+        for image, label in train.take(1):
             print("Image shape: ", image.numpy().shape)
             print("Label: ", label.numpy())
-        train = self.prepare_for_training(train_ds)
-        test = self.prepare_for_training(test_ds)
 
         return train, test
 
@@ -227,7 +231,7 @@ if __name__ == '__main__':
     bird_data = DataSet(path_root)
     #train_ds = bird_data.load(GPU=True, train=True, batch_size=32)
     #ds_train, ds_test = bird_data.loadtfds('caltech_birds2011')
-    ds_train, ds_test = bird_data.load_gpu()
+    ds_train, ds_test = bird_data.load_gpu(batch_size=4)
     """
     filename1 = 'train_ds.tfrecord'
     writer1 = tf.data.experimental.TFRecordWriter(filename1)
@@ -235,4 +239,5 @@ if __name__ == '__main__':
     #read
     #raw_dataset = tf.data.TFRecordDataset(filenames)
     """
-    image_batch, label_batch = next(iter(ds_train))
+    #image_batch, label_batch = next(iter(ds_train))
+
