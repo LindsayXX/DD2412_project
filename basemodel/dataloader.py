@@ -28,9 +28,8 @@ class DataSet:
         self.class_path = path_root + "/CUB_200_2011/CUB_200_2011/classes.txt"
         self.label_path = path_root + "/CUB_200_2011/CUB_200_2011/image_class_labels.txt"
         self.AUTOTUNE = tf.data.experimental.AUTOTUNE
-        self.image_label = {}
 
-    def load(self, GPU=True, train=True, batch_size):#discard
+    def load(self, GPU=True, train=True, batch_size=32):#discard
         index = self.get_split()
         if GPU:
             n = len(index)
@@ -49,7 +48,7 @@ class DataSet:
 
         return ds
 
-    def prepare_for_training(self, ds, cache=True, batch_size=32):
+    def prepare_for_training(self, ds, batch_size=32, cache=True):
         # This is a small dataset, only load it once, and keep it in memory.
         # use `.cache(filename)` to cache preprocessing work for datasets that don't
         # fit in memory.
@@ -60,6 +59,12 @@ class DataSet:
             else:
                 ds = ds.cache()
         """
+        cache_dir = os.path.join(os.getcwd(), 'cache_dir')
+        try:
+            os.makedirs(cache_dir)
+        except OSError:
+            print('Cache directory already exists')
+        cached = ds.cache(os.path.join(cache_dir, 'cache.temp'))
         ds = ds.shuffle(1000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return ds
@@ -167,7 +172,7 @@ class DataSet:
                 else:
                     test_list.append(self.image_path + images[i].split(' ')[1].split('\n')[0])
 
-            return tf.data.Dataset.from_tensor_slices(train_list).cache(), tf.data.Dataset.from_tensor_slices(test_list).cache()
+            return tf.data.Dataset.from_tensor_slices(train_list), tf.data.Dataset.from_tensor_slices(test_list)#.cache()
 
     def get_phi(self):
         index = self.get_split(index=True)
@@ -234,5 +239,5 @@ if __name__ == '__main__':
     #read
     #raw_dataset = tf.data.TFRecordDataset(filenames)
     """
-    image_batch, label_batch = next(iter(ds_train))
+    #image_batch, label_batch = next(iter(ds_train))
 
