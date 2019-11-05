@@ -55,10 +55,13 @@ if __name__ == '__main__':
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
     path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
     bird_data = DataSet(path_root)
+    # load all imgs
     phi = bird_data.get_phi()
     train_ds, test_ds = bird_data.load_gpu(batch_size=4)
+    # only take 1000 images for local test
     #train_ds = bird_data.load(GPU=False, train=True, batch_size=32)
     #test_ds = bird_data.load(GPU=False, train=False, batch_size=32)
+
     #image_batch, label_batch = next(iter(train_ds))
 
     #print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))

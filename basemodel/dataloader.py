@@ -30,7 +30,7 @@ class DataSet:
         self.AUTOTUNE = tf.data.experimental.AUTOTUNE
         self.image_label = {}
 
-    def load(self, GPU=True, train=True, batch_size=32):#discard
+    def load(self, GPU=True, train=True, batch_size):#discard
         index = self.get_split()
         if GPU:
             n = len(index)
@@ -200,11 +200,11 @@ class DataSet:
         #dataset = train_list_ds.interleave(tf.data.TFRecordDataset, cycle_length=FLAGS.num_parallel_reads, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         train_ds = train_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
         test_ds = test_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
-        for image, label in train_ds.take(1):
-            print("Image shape: ", image.numpy().shape)
-            print("Label: ", label.numpy())
         train = self.prepare_for_training(train_ds, batch_size)
         test = self.prepare_for_training(test_ds, batch_size)
+        for image, label in train.take(1):
+            print("Image shape: ", image.numpy().shape)
+            print("Label: ", label.numpy())
 
         return train, test
 
