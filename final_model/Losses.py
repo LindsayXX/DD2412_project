@@ -11,15 +11,17 @@ class Loss():
         self.margin_cct = 0.8
 
     # @tf.function
-    def loss_CPT(self, map_att, gtmap, batch_size=32):
-        diff = tf.math.abs(map_att - gtmap)
-        return tf.nn.l2_loss(diff)/batch_size
+    def loss_CPT(self, m0, m1, mask0, mask1, batch_size=32):
+        diff0 = tf.math.abs(m0 - mask0)
+        diff1 = tf.math.abs(m1 - mask1)
+        loss = tf.nn.l2_loss(diff0)/batch_size + tf.nn.l2_loss(diff1)/batch_size
+        return loss
 
     # @tf.function
-    def loss_DIV(self, attmap_out):
-        print("attention map dim {}".format(attmap_out.shape))
-        m_k = attmap_out[0, :, :, :]
-        m_i = attmap_out[1, :, :, :]
+    def loss_DIV(self, m_k, m_i):
+        #print("attention map dim {}".format(attmap_out.shape))
+        #m_k = attmap_out[0, :, :, :]
+        #m_i = attmap_out[1, :, :, :]
         n = m_k.shape[0]
         max_mk = tf.math.reduce_max(m_k, axis=[1, 2])
         max_mi = tf.math.reduce_max(m_i, axis=[1, 2])
@@ -85,7 +87,7 @@ class Loss():
         return loss/N
 
     #@tf.function
-    def loss_CLS(self, score):
+    def loss_CLS(self, global_scores, local_scores0, local_scores1):
         exp_score = tf.math.exp(score)
         sum_score = tf.math.reduce_sum(exp_score, [0, 2])
         loss = 0.0
@@ -97,10 +99,10 @@ class Loss():
     def loss_baseline(self, score, labels):
         tf.nn.softmax_cross_entropy_with_logits(score, labels)
 
-    def final_loss(self, attmap_out, crop_out, scores_out, phis_out, y_true, y_pred, n_classes, batch_size, C):
-        div = self.loss_DIV(attmap_out)
-        cpt = self.loss_CPT(attmap_out, crop_out, batch_size)
-        cls = self.loss_CLS(scores_out)
+    def final_loss(self, m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, phis_out, y_true, y_pred, n_classes, batch_size, C):
+        div = self.loss_DIV(m0, m1)
+        cpt = self.loss_CPT(m0, m1, mask0, mask1, batch_size)
+        cls = self.loss_CLS(global_scores, local_scores0, local_scores1)
         cct = self.loss_CCT(phis_out, y_true, C)
         return div + cpt + cls + cct
 

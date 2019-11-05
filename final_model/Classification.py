@@ -14,7 +14,7 @@ class Classifier(layers.Layer):
         super(Classifier, self).__init__()
         self.n_classes = n_classes
 
-    def call(self, scores):
+    def call(self, global_scores, local_scores0, local_scores1):
         sum_scores = tf.math.reduce_sum(scores, [0])
         y_pred = tf.math.argmax(sum_scores, 1)
         return y_pred
