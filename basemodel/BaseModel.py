@@ -55,7 +55,8 @@ if __name__ == '__main__':
     tf.compat.v1.enable_eager_execution()
     gpu = tf.config.experimental.list_physical_devices('GPU')
     print("Num GPUs Available: ", len(gpu))
-    tf.config.experimental.set_memory_growth(gpu, True)
+    if gpu:
+        tf.config.experimental.set_memory_growth(gpu, True)
     path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
     bird_data = DataSet(path_root)
     # load all imgs
@@ -78,9 +79,9 @@ if __name__ == '__main__':
     ckpt.restore(manager.latest_checkpoint)  # pickup training from where you left off
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
-    train_accuracy = tf.keras.metrics.CategoricalAccuracy(name='train_accuracy')
+    train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
     test_loss = tf.keras.metrics.Mean(name='test_loss')
-    test_accuracy = tf.keras.metrics.CategoricalAccuracy(name='test_accuracy')
+    test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
 
     @tf.function
@@ -117,7 +118,7 @@ if __name__ == '__main__':
             train_step(images, labels)
             tf.print('Epoch {}, train_Loss: {}, train_Accuracy: {}\n'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
             train_loss_results.append(train_loss.result())
-            train_accuracy_results.append(train_accuracy.results())
+            train_accuracy_results.append(train_accuracy.result())
 
         #for test_images, test_labels in test_ds:
             #test_images, test_labels = next(iter(test_ds))
