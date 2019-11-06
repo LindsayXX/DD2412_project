@@ -5,6 +5,7 @@ import tensorflow as tf
 IMG_SIZE = 448
 BATCH_SIZE = 32
 
+tf.random.set_seed(3)
 
 class BaseModel(tf.keras.Model):
     '''
