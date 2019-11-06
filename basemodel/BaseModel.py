@@ -5,6 +5,7 @@ import tensorflow as tf
 IMG_SIZE = 448
 BATCH_SIZE = 32
 
+tf.random.set_seed(3)
 
 class BaseModel(tf.keras.Model):
     '''
@@ -56,7 +57,7 @@ if __name__ == '__main__':
     gpu = tf.config.experimental.list_physical_devices('GPU')
     print("Num GPUs Available: ", len(gpu))
     if gpu:
-        tf.config.experimental.set_memory_growth(gpu, True)
+        tf.config.experimental.set_memory_growth(gpu[0], True)
     path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
     bird_data = DataSet(path_root)
     # load all imgs
@@ -99,7 +100,7 @@ if __name__ == '__main__':
         with tf.GradientTape() as tape:
             scores = model(images, phi)
             loss = loss_baseline(scores, labels)
-        gradients = tape.gradient(loss, model.trainable_variables)  # ti einai trainable variables?
+        gradients = tape.gradient(loss, model.trainable_variables)
         # print(gradients)
         opt.apply_gradients(zip(gradients, model.trainable_variables))
         y_pred = tf.math.argmax(scores, axis=1)
@@ -113,6 +114,8 @@ if __name__ == '__main__':
     for epoch in range(EPOCHS):
         train_loss_results = []
         train_accuracy_results = []
+        test_loss_results = []
+        test_accuracy_results = []
         for images, labels in train_ds:
         #images, labels = next(iter(train_ds))
             train_step(images, labels)
@@ -123,6 +126,8 @@ if __name__ == '__main__':
         #for test_images, test_labels in test_ds:
             #test_images, test_labels = next(iter(test_ds))
             #test_step(test_images, test_labels)
+            #test_loss_results.append(test_loss.result())
+            #test_accuracy_results.append(test_accuracy.result())
 
         ckpt.step.assign_add(1)
         if int(ckpt.step) % CHECKEPOCHS == 0:

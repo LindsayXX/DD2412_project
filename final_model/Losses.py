@@ -124,3 +124,6 @@ class Loss():
         cls = self.loss_CLS(global_scores, local_scores0, local_scores1)
         cct = self.loss_CCT(global_phi, local0_phi, local1_phi, y_true, C)
         return div + cpt + cls + cct
+
+    def loss_MA(self, m0, m1, mask0, mask1, batch_size):
+        return self.loss_DIV(m0, m1) + self.loss_CPT(m0, m1, mask0, mask1, batch_size)
