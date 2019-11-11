@@ -26,9 +26,9 @@ class Loss():
         n = m_k.shape[0]
         max_mk = tf.math.reduce_max(m_k, axis=[1, 2])
         max_mi = tf.math.reduce_max(m_i, axis=[1, 2])
-        loss = tf.Variable(tf.constant([0.0]))
-        value_in_mi = tf.Variable(tf.constant([0.0]))
-        value_in_mk = tf.Variable(tf.constant([0.0]))
+        loss = 0.0
+        value_in_mi = 0.0
+        value_in_mk = 0.0
         for i in range(n):
             indx_mk = tf.where(m_k[i, :, :] == max_mk[i])
             aux = tf.gather_nd(m_i[i, :, :], indx_mk) - self.margin_div

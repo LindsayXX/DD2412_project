@@ -15,13 +15,29 @@ from dataloader import DataSet
 
 from Losses import Loss
 
-# IMG_SIZE = 448
 import sys
+
 sys.path.append("../src")
 from jointmodel import JFL
+tf.compat.v1.enable_eager_execution()
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    # Create 2 virtual GPUs with 1GB memory each
+    try:
+        tf.config.experimental.set_virtual_device_configuration(gpus[0], [
+            tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024),
+            tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)])
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        # Virtual devices must be set before GPUs have been initialized
+        print(e)
+
+tf.debugging.set_log_device_placement(True)
+strategy = tf.distribute.MirroredStrategy()
 
 CHANNELS = 512
-BATCH_SIZE = 32
+BATCH_SIZE = 5
 N_CLASSES = 200
 SEMANTIC_SIZE = 28
 IMG_SIZE = 448
@@ -132,6 +148,13 @@ class FinalModel(Model):
         m0 = self.weighted_sum0(feature_map, a0)  # gives tensor of shape (BATCH,14,14)
         m1 = self.weighted_sum1(feature_map, a1)  # gives tensor of shape (BATCH,14,14)
 
+        # m0 = tf.convert_to_tensor(np.load("im0.npy"))
+        # m1 = tf.convert_to_tensor(np.load("im1.npy"))
+        attmap_out = tf.TensorArray(tf.float32, 2)
+        attmap_out.write(0, m0)
+        attmap_out.write(1, m1)
+        attmap_out = attmap_out.stack()
+
         print("CROP")
         # CROPPING SUBNET
         mask0 = self.crop_net0(m0)  # shape(BATCH,14,14)
@@ -151,6 +174,7 @@ class FinalModel(Model):
         full_image = self.vgg_features_global(full_image)
         attended_part0 = self.vgg_features_local0(attended_part0)
         attended_part1 = self.vgg_features_local1(attended_part1)
+        # print(full_image.shape, attended_part0.shape, attended_part1.shape)
 
         # print("THETAS")
         # creating thetas
@@ -172,62 +196,17 @@ class FinalModel(Model):
                global_phi, local0_phi, local1_phi, y_pred, self.C
 
 
-@tf.function
-def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun, epoch):
-    with tf.GradientTape() as tape:
-        m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, global_phi, local0_phi, local1_phi, y_pred, C = model(image_batch, PHI)
-        loss = loss_fun(m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, global_phi, local0_phi, local1_phi, y_true, y_pred,
-                        N_CLASSES, image_batch.shape[0], C)
-    gradients = tape.gradient(loss, model.trainable_variables)
-    opt_fun.apply_gradients(zip(gradients, model.trainable_variables))
+# read dataset
+path_root = os.path.abspath(os.path.dirname(__file__))
+database = DataSet("/Volumes/Watermelon")  # path_root)
+PHI = database.get_phi()
+DS, DS_test = database.load_gpu(batch_size=5)  # image_batch, label_batch
 
-    # summary for tensorboard
-    with train_summary_writer.as_default():
-        tf.summary.scalar('loss', loss.result(), step=epoch)
-        tf.summary.scalar('accuracy', train_accuracy(tf.expand_dims(y_true, -1),
-                                                     tf.expand_dims(y_pred, -1)).result(), step=epoch)
-
-# test the model
-# @tf.function
-def test_step(model, images, loss_fun):
-    m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size = model(images)
-    loss = loss_fun(m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size)
-    print("Current TestLoss: {}".format(loss))
-
-
-# testing by running
-
-if __name__ == '__main__':
-    tf.compat.v1.enable_eager_execution()
-    gpu = tf.config.experimental.list_physical_devices('GPU')
-    print("Num GPUs Available: ", len(gpu))
-    if len(gpu) > 0:
-        tf.config.experimental.set_memory_growth(gpu[0], True)
-        tf.config.experimental.set_memory_growth(gpu[1], True)
-
-    # read dataset
-    path_root = os.path.abspath(os.path.dirname(__file__))
-    database = DataSet("/Volumes/Watermelon")#path_root)
-    PHI = database.get_phi()
-    DS, DS_test = database.load_gpu(batch_size=32)  # image_batch, label_batch
-    modelaki = FinalModel()
-
+with strategy.scope():
     # define loss and opt functions
     loss_fun = Loss().final_loss
-    step = tf.Variable(0, trainable=False)
-    boundaries = [187*5, 187*10]
-    values = [0.05, 0.005, 0.0005]
-    learning_rate_fn = PiecewiseConstantDecay(boundaries, values)
-    # Later, whenever we perform an optimization step, we pass in the step.
-    learning_rate = learning_rate_fn(step)
-    opt_fun = tfa.optimizers.SGDW(learning_rate=learning_rate, weight_decay=5*1e-4, momentum=0.9)
-    #opt_fun = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
 
-    # define checkpoint settings
-    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt_fun, net=modelaki)
-    manager = tf.train.CheckpointManager(ckpt, path_root + '/tf_ckpts', max_to_keep=10)  # keep only the three most recent checkpoints
-    ckpt.restore(manager.latest_checkpoint)  # pickup training from where you left off
-
+with strategy.scope():
     # define train and test loss and accuracy
     train_loss = tf.keras.metrics.Mean(name='train_loss')
     train_accuracy = tf.keras.metrics.Accuracy(name='train_accuracy')
@@ -241,13 +220,52 @@ if __name__ == '__main__':
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
+with strategy.scope():
+    modelaki = FinalModel()
+    step = tf.Variable(0, trainable=False)
+    boundaries = [187 * 5, 187 * 10]
+    values = [0.05, 0.005, 0.0005]
+    learning_rate_fn = PiecewiseConstantDecay(boundaries, values)
+    # Later, whenever we perform an optimization step, we pass in the step.
+    learning_rate = learning_rate_fn(step)
+    opt_fun = tfa.optimizers.SGDW(learning_rate=learning_rate, weight_decay=5 * 1e-4, momentum=0.9)
+
+    # define checkpoint settings
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt_fun, net=modelaki)
+    manager = tf.train.CheckpointManager(ckpt, path_root + '/tf_ckpts',
+                                         max_to_keep=10)  # keep only the three most recent checkpoints
+    ckpt.restore(manager.latest_checkpoint)  # pickup training from where you left off
+
+with strategy.scope():
+    # @tf.function
+    def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun, epoch):
+        with tf.GradientTape() as tape:
+            m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, global_phi, local0_phi, local1_phi, y_pred, C = model(
+                image_batch, PHI)
+            loss = loss_fun(m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, global_phi, local0_phi,
+                            local1_phi, y_true, y_pred,
+                            N_CLASSES, image_batch.shape[0], C)
+        gradients = tape.gradient(loss, model.trainable_variables)
+        opt_fun.apply_gradients(zip(gradients, model.trainable_variables))
+
+        with train_summary_writer.as_default():
+            tf.summary.scalar('loss', loss.result(), step=epoch)
+            tf.summary.scalar('accuracy', train_accuracy(tf.expand_dims(y_true, -1),
+                                                         tf.expand_dims(y_pred, -1)).result(), step=epoch)
+
+
+    # test the model
+    # @tf.function
+    def test_step(model, images, loss_fun):
+        m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size = model(images)
+        loss = loss_fun(m_i, m_k, map_att, gtmap, score, y_true, y_pred, n_classes, batch_size)
+        print("Current TestLoss: {}".format(loss))
+
+
     EPOCHS = 30
     CHECKEPOCHS = 3
 
     count = 0
-    # run for each epoch and batch
-    # loss and accuracy are saved every 50 updates
-    # model saved every 3 epochs
     for epoch in range(EPOCHS):
         train_loss_results = []
         train_accuracy_results = []
@@ -269,3 +287,5 @@ if __name__ == '__main__':
         template = 'Epoch {}, Loss: {}'
         print(template.format(epoch + 1, train_loss))
 
+# TODO: pre-train vgg only on birds
+# TODO: global variables of this module may differ from the subnetworks module.
