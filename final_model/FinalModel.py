@@ -239,8 +239,8 @@ if __name__ == '__main__':
     modelaki = FinalModel()
 
     loss_fun = Loss().final_loss
-    opt_fun = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
-
+    opt_fun = tfa.optimizers.SGDW(
+        learning_rate=0.05, weight_decay=5*1e-4, momentum=0.9)
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt_fun, net=modelaki)
     manager = tf.train.CheckpointManager(ckpt, path_root + '/tf_ckpts',
                                          max_to_keep=3)  # keep only the three most recent checkpoints

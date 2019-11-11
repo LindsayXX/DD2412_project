@@ -11,14 +11,14 @@ class Loss():
         self.margin_div = 0.2
         self.margin_cct = 0.8
 
-    # @tf.function
+    @tf.function
     def loss_CPT(self, m0, m1, mask0, mask1, batch_size=32):
         diff0 = tf.math.abs(m0 - mask0)
         diff1 = tf.math.abs(m1 - mask1)
         loss = tf.nn.l2_loss(diff0) / batch_size + tf.nn.l2_loss(diff1) / batch_size
         return loss
 
-    # @tf.function
+    @tf.function
     def loss_DIV(self, m_k, m_i):
         # print("attention map dim {}".format(attmap_out.shape))
         # m_k = attmap_out[0, :, :, :]
@@ -72,7 +72,7 @@ class Loss():
         # m_k_tilt = tf.multiply(max_mk, max_mi - self.margin_div) #tf.math.maximum(m_k - self.margin_div, 0)
         # return tf.tensordot(tf.reshape(m_i,[-1]), tf.reshape(m_k_tilt, [-1]), 1)
 
-    # @tf.function
+    @tf.function
     def loss_CCT(self, global_phi, local0_phi, local1_phi, labels, C):
         N = global_phi.shape[0]
         loss = 0.0
@@ -98,7 +98,7 @@ class Loss():
         #             loss = loss + sum_diff_l2
         # return loss/N
 
-    # @tf.function
+    @tf.function
     def loss_CLS(self, global_scores, local_scores0, local_scores1):
         sum_gl = tf.add(global_scores, local_scores0)
         sum_gg = tf.add(sum_gl, local_scores1)
@@ -125,5 +125,6 @@ class Loss():
         cct = self.loss_CCT(global_phi, local0_phi, local1_phi, y_true, C)
         return div + cpt + cls + cct
 
+    @tf.function
     def loss_MA(self, m0, m1, mask0, mask1, batch_size):
         return self.loss_DIV(m0, m1) + self.loss_CPT(m0, m1, mask0, mask1, batch_size)

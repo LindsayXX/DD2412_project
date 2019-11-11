@@ -34,7 +34,7 @@ class DataSet:
         if GPU:
             n = len(index)
         else:
-            n = 1000
+            n = 200
         if train:
             #phi = self.get_phi(index)# Φ, semantic matrix, 28*200
             labels = self.get_label(n, index, set=0)
