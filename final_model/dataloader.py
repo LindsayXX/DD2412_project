@@ -32,9 +32,9 @@ class DataSet:
     def load(self, GPU=True, train=True, batch_size=32):#discard
         index = self.get_split()
         if GPU:
-            n = len(index)
+            n = 20#len(index)
         else:
-            n = 1000
+            n = 20#000
         if train:
             #phi = self.get_phi(index)# Φ, semantic matrix, 28*200
             labels = self.get_label(n, index, set=0)
@@ -44,7 +44,7 @@ class DataSet:
             images = self.get_image(n, index, set=1)
             #phi = self.get_semantic(n, index, set=1) # φ, semantic features 28, n
 
-        ds = tf.data.Dataset.from_tensor_slices((images, np.asarray(labels))).cache().shuffle(1000).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        ds = tf.data.Dataset.from_tensor_slices((images, np.asarray(labels))).cache().shuffle(20).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return ds
 
