@@ -6,7 +6,7 @@ import matplotlib.pylab as plt
 from tensorflow_core.python.keras.models import Sequential
 from DataBase import Database
 
-BATCH_SIZE = 5
+BATCH_SIZE = 32
 IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 IMG_HEIGHT = 448
@@ -122,32 +122,46 @@ class Kmeans(layers.Layer):
         max_pixels = tf.concat([arg1, arg0], axis=2)
         return max_pixels
 
-    def create_condition(self, assignments):
+    def create_condition(self, assignments, cond_value):
         # get right dimension for assignments
-        total_assig = []
+        total_assig0 = []
+        total_assig1 = []
         l0 = tf.zeros((1, 14, 14))
         l1 = tf.ones((1, 14, 14))
         for b in range(BATCH_SIZE):
-            assig = []
+            assig0 = []
+            assig1 = []
+
+            def f0():
+                return l0, l1
+
+            def f1():
+                return l1, l0
             for c in range(N_CHANNELS):
-                if assignments[b, c]:
-                    assig.append(l1)
-                else:
-                    assig.append(l0)
-            total_assig.append(tf.expand_dims(tf.concat(assig, 0), 0))
-        condition = tf.cast(tf.concat(total_assig, 0), tf.dtypes.bool)
-        return condition
+                value = tf.gather_nd(assignments, [b, c])
+                v1, v0 = tf.case([(tf.greater(value, 0), f1)], f0)
+                assig0.append(v0)
+                assig1.append(v1)
+                # if assignments[b, c]:
+                #     assig.append(l1)
+                # else:
+                #     assig.append(l0)
+            total_assig0.append(tf.expand_dims(tf.concat(assig0, 0), 0))
+            total_assig1.append(tf.expand_dims(tf.concat(assig1, 0), 0))
+        condition0 = tf.cast(tf.concat(total_assig0, 0), tf.dtypes.bool)
+        condition1 = tf.cast(tf.concat(total_assig1, 0), tf.dtypes.bool)
+        return condition1, condition0
 
     def call(self, feature_batch):
         max_points = self.get_max_pixels(feature_batch)
 
-        assignments = tf.cast(self.cluster2(max_points), tf.dtypes.bool)
+        assignments = self.cluster2(max_points) #tf.cast(, tf.dtypes.bool)
         batch_images = tf.transpose(feature_batch, [0, 3, 1, 2])
         image0 = tf.zeros(batch_images.shape)
 
-        condition1 = self.create_condition(assignments)
+        condition1, condition0 = self.create_condition(assignments, 1)
         cluster1 = tf.where(condition1, batch_images, image0)
-        condition0 = self.create_condition(tf.where(assignments, 0, 1))
+        #condition0 = self.create_condition(assignments, 0) #tf.where(assignments, 0, 1))
         cluster0 = tf.where(condition0, batch_images, image0)
 
         C0 = tf.transpose(cluster0, [0, 2, 3, 1])

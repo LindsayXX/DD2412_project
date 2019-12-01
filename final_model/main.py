@@ -126,7 +126,7 @@ if __name__ == '__main__':
         template = 'Epoch {}, Loss: {}, Accuracy: {}'
         print(template.format(epoch + 1, train_loss, train_accuracy))
 
-    # TEST UNSEEN CLASSES
-    phi_test = bird_data.get_phi(set=0)
-    for images, labels in test_ds:
-        classification = test_step(modelaki, images, w, phi_test)
+    # # TEST UNSEEN CLASSES
+    # phi_test = bird_data.get_phi(set=0)
+    # for images, labels in test_ds:
+    #     classification = test_step(modelaki, images, w, phi_test)
