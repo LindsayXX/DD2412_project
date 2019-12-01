@@ -22,8 +22,8 @@ from jointmodel import JFL
 
 CHANNELS = 512
 BATCH_SIZE = 32
-N_CLASSES = 200
-SEMANTIC_SIZE = 28
+N_CLASSES = 150
+SEMANTIC_SIZE = 312
 IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 
@@ -167,19 +167,19 @@ class FinalModel(Model):
         local_scores1, local1_phi = self.joint_net_local1.call(local_theta1, phi)  # self.score1(local_theta1, phi)
 
         # average scores
-        sum_gl = tf.add(global_scores, local_scores0)
-        sum_gll = tf.add(sum_gl, local_scores1)
-        avg_score = tf.multiply(sum_gll, 1.0 / 3.0)
+        sum_gl = tf.add(global_theta, local_scores0)
+        sum_gll_score = tf.add(sum_gl, local_scores1)
+        #avg_score = tf.multiply(sum_gll, 1.0 / 3.0)
 
         # average phi
         sum_gl = tf.add(global_phi, local0_phi)
-        sum_gll = tf.add(sum_gl, local1_phi)
-        avg_phi = tf.multiply(sum_gll, 1.0 / 3.0)
+        sum_gll_phi = tf.add(sum_gl, local1_phi)
+        #avg_phi = tf.multiply(sum_gll, 1.0 / 3.0)
 
         # average
-        y_pred = self.classifier(avg_score)
+        y_pred = self.classifier(sum_gll_score)
 
-        return m0, m1, mask0, mask1, avg_score, avg_phi, y_pred, self.C
+        return m0, m1, mask0, mask1, sum_gll_score, sum_gll_phi, y_pred, self.C
 
 
 # @tf.function
