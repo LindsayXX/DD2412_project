@@ -6,7 +6,7 @@ import matplotlib.pylab as plt
 from tensorflow_core.python.keras.models import Sequential
 from DataBase import Database
 
-BATCH_SIZE = 32
+BATCH_SIZE = 5
 IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 IMG_HEIGHT = 448
@@ -75,6 +75,39 @@ class Kmeans(layers.Layer):
             t += 1
         return assignments
 
+    def cluster2(self, inputs):
+        # center of the clusters
+        centroids = tf.Variable(tf.slice(tf.random.shuffle(inputs), [0, 0, 0], [BATCH_SIZE, self.clusters_n, self.clusters_n]),
+                                aggregation=tf.VariableAggregation.SUM, trainable=False)
+        # cluster assignment: points belong to each cluster
+        assignments = tf.Variable(tf.random.uniform((inputs.shape[0:2]), minval=0, maxval=1, dtype=tf.dtypes.int64),
+                                  aggregation=tf.VariableAggregation.SUM, trainable=False)
+        t = 0
+        while t <= self.iterations:
+            # expand
+            points_expanded = tf.expand_dims(inputs, 1)
+            centroids_expanded = tf.expand_dims(centroids, 2)
+
+            # assign Cluster
+            distances = tf.math.reduce_sum(tf.square(tf.subtract(points_expanded, centroids_expanded)), 3)
+            assignments.assign(tf.argmin(distances, 1))
+
+            # compute new clusters' values
+            new_centroids = []
+            for b in range(BATCH_SIZE):
+                assig0 = tf.cast(assignments[b, :], tf.dtypes.bool)
+                m0 = tf.expand_dims(tf.math.reduce_mean(
+                    tf.gather_nd(inputs[b, :, :], tf.where(assig0)), 0), 0)  # tf.reshape( , [1, -1])
+                assig1 = tf.where(assig0, 0, 1)
+                m1 = tf.expand_dims(tf.math.reduce_mean(
+                    tf.gather_nd(inputs[b, :, :], tf.where(assig1)), 0), 0) # tf.reshape( , [1, -1])
+                batch_centroids = tf.expand_dims(tf.concat([m0, m1], 0), 0)
+                new_centroids.append(batch_centroids)
+            centroids.assign(tf.concat(new_centroids, 0))
+            t += 1
+
+        return assignments
+
     def get_max_pixels(self, batch):
         batch_t = tf.transpose(batch, [0, 3, 1, 2])
 
@@ -89,54 +122,54 @@ class Kmeans(layers.Layer):
         max_pixels = tf.concat([arg1, arg0], axis=2)
         return max_pixels
 
-        # max_batch = tf.TensorArray(tf.int64, size=batch.shape[0])
-        # for i in range(batch.shape[0]):
-        #     image_batch = batch[i, :, :, :]
-        #     max_pix = tf.TensorArray(tf.int64, size=batch.shape[-1])
-        #     for channel in range(image_batch.shape[2]):
-        #         image = image_batch[:, :, channel]
-        #         maximum = tf.math.reduce_max(image)
-        #         x = tf.where(image == maximum)
-        #         if x.shape[0] == 1:
-        #             max_pix.write(channel, x) #max_pix.append(x)
-        #         else:
-        #             # continue
-        #             choice = tf.dtypes.cast(tf.random.uniform((1, 1), 0, x.shape[0]), tf.int64)[0][0]
-        #             max_pix.write(channel, tf.expand_dims(x[choice], 0)) #.append(tf.expand_dims(x[choice], 0))
-        #     max_pix = max_pix.stack()
-        #     max_batch.write(i, max_pix)
-        # max_batch = tf.reshape(max_batch.stack(), [batch.shape[0], batch.shape[-1], 2])
-        # return max_batch
+    def create_condition(self, assignments):
+        # get right dimension for assignments
+        total_assig = []
+        l0 = tf.zeros((1, 14, 14))
+        l1 = tf.ones((1, 14, 14))
+        for b in range(BATCH_SIZE):
+            assig = []
+            for c in range(N_CHANNELS):
+                if assignments[b, c]:
+                    assig.append(l1)
+                else:
+                    assig.append(l0)
+            total_assig.append(tf.expand_dims(tf.concat(assig, 0), 0))
+        condition = tf.cast(tf.concat(total_assig, 0), tf.dtypes.bool)
+        return condition
 
     def call(self, feature_batch):
         max_points = self.get_max_pixels(feature_batch)
-        n_max_points = max_points.shape[0]
-        batch_cluster0 = tf.TensorArray(tf.float32, size=n_max_points)
-        batch_cluster1 = tf.TensorArray(tf.float32, size=n_max_points)
-        for m in range(n_max_points):
-            assign = self.cluster(max_points[m, :, :])
-            n_assign = assign.shape[0]
-            cluster0 = tf.TensorArray(tf.float32, size=n_assign)
-            cluster1 = tf.TensorArray(tf.float32, size=n_assign)
-            for v in range(n_assign):
-                image = feature_batch[m, :, :, v]
-                if assign[v] == 0:
-                    #cluster0.append(image)
-                    cluster0.write(v, image)
-                    image = tf.zeros((14, 14))
-                    cluster1.write(v, image)
-                else:
-                    cluster1.write(v, image)
-                    image = tf.zeros((14, 14))
-                    cluster0.write(v, image)
 
-            cluster0 = cluster0.stack()
-            cluster1 = cluster1.stack()
-            batch_cluster0.write(m, cluster0)
-            batch_cluster1.write(m, cluster1)
-        batch_cluster0 = tf.transpose(batch_cluster0.stack(), perm=[0, 2, 3, 1])
-        batch_cluster1 = tf.transpose(batch_cluster1.stack(), perm=[0, 2, 3, 1])
-        return batch_cluster0, batch_cluster1
+        assignments = tf.cast(self.cluster2(max_points), tf.dtypes.bool)
+        batch_images = tf.transpose(feature_batch, [0, 3, 1, 2])
+        image0 = tf.zeros(batch_images.shape)
+
+        condition1 = self.create_condition(assignments)
+        cluster1 = tf.where(condition1, batch_images, image0)
+        condition0 = self.create_condition(tf.where(assignments, 0, 1))
+        cluster0 = tf.where(condition0, batch_images, image0)
+
+        C0 = tf.transpose(cluster0, [0, 2, 3, 1])
+        C1 = tf.transpose(cluster1, [0, 2, 3, 1])
+        return C0, C1
+
+        # for b in range(BATCH_SIZE):
+        #     cluster0 = []
+        #     cluster1 = []
+        #     assigned0 = tf.where(tf.equal(assignments[b, :], 0))
+        #     for e in range(N_CHANNELS):
+        #         image = tf.expand_dims(tf.gather_nd(batch_images, [b, e]), 0)
+        #         if e in assigned0:
+        #             cluster0.append(image)
+        #             cluster1.append(image0)
+        #         else:
+        #             cluster0.append(image0)
+        #             cluster1.append(image)
+        #     batch_cluster0.append(tf.concat(cluster0, 0))
+        #     batch_cluster1.append(tf.concat(cluster1, 0))
+        # C0 = tf.concat(batch_cluster0, 0)
+        # C1 = tf.concat(batch_cluster1, 0)
 
 # this is a new version of Average Pooling
 class Average_Pooling(layers.Layer):

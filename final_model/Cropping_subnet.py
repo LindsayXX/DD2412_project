@@ -27,9 +27,9 @@ class RCN(tf.keras.Model):
     def __init__(self, hidden_unit, map_size=14, image_size=448):
         super(RCN, self).__init__()
         self.flat = tf.keras.layers.Flatten()
-        self.fc1 = tf.keras.layers.Dense(hidden_unit, activation="relu")  # , input_shape=(map_size * map_size))
+        self.fc1 = tf.keras.layers.Dense(hidden_unit, activation="sigmoid")  #  relu")  # , input_shape=(map_size * map_size))
         self.fc2 = tf.keras.layers.Dense(3)
-        self.activation = tf.keras.layers.ReLU(max_value=map_size - 1)  # sigmoid
+        self.activation = tf.keras.layers.Softmax() #ReLU(max_value=map_size/4)  # sigmoid
         self.map_size = map_size
 
     def call(self, input, training=True, k=10):
@@ -37,6 +37,7 @@ class RCN(tf.keras.Model):
         out = self.fc1(out)
         out = self.fc2(out)
         out = self.activation(out)
+        out = tf.multiply(out, 14)
         # out = tf.dtypes.cast(out, tf.int32)
         mask = self.boxcar(out, k)
 
@@ -50,6 +51,7 @@ class RCN(tf.keras.Model):
         X, Y = tf.meshgrid(X, Y)
         X = tf.dtypes.cast(X, tf.float32)
         Y = tf.dtypes.cast(Y, tf.float32)
+        ts = 14/4
         for n in range(t.shape[0]):
             '''
             for i in range(V.shape[1]):
@@ -58,14 +60,14 @@ class RCN(tf.keras.Model):
                     V_y = 1 / (1 + tf.math.exp(-k * (j - t[n, 1] + 0.5 * t[n, 2]))) - 1 / (1 + tf.math.exp(-k * (j - t[n, 1] - 0.5 * t[n, 2])))
                     V[n, i, j] = tf.multiply(V_x, V_y)
             '''
-            V_x = 1 / (tf.math.exp(-k * (tf.math.add((X - t[n, 0]), t[n, 2] / 2))) + 1) - 1 / (
-                        1 + tf.math.exp(-k * (tf.math.subtract((X - t[n, 0]), t[n, 2] / 2))))
-            V_y = 1 / (1 + tf.math.exp(-k * tf.math.add(Y - t[n, 1], t[n, 2] / 2))) - 1 / (
-                        1 + tf.math.exp(-k * tf.math.subtract(Y - t[n, 1], t[n, 2] / 2)))
+            V_x = 1 / (tf.math.exp(-k * (tf.math.add((X - t[n, 0]), ts / 2))) + 1) - 1 / (
+                        1 + tf.math.exp(-k * (tf.math.subtract((X - t[n, 0]), ts / 2)))) #[n, 2]
+            V_y = 1 / (1 + tf.math.exp(-k * tf.math.add(Y - t[n, 1], ts / 2))) - 1 / (
+                        1 + tf.math.exp(-k * tf.math.subtract(Y - t[n, 1], ts / 2)))
             # V[n] = tf.multiply(V_x, V_y)
-            V.append(tf.multiply(V_x, V_y))
+            V.append(tf.expand_dims(tf.multiply(V_x, V_y),0))
 
-        return tf.stack(V)
+        return tf.concat(V, 0)
 
 
 class Crop(layers.Layer):
