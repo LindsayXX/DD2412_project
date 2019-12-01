@@ -64,7 +64,7 @@ class DataSet:
         except OSError:
             print('Cache directory already exists')
         cached = ds.cache(os.path.join(cache_dir, 'cache.temp'))
-        ds = ds.shuffle(1000).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        ds = ds.repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return ds
 
@@ -110,26 +110,10 @@ class DataSet:
 
         return image_new
 
-    def get_attribute(self):
-        file = open(self.semantics_path1, "r")
-        lines = file.readlines()
-        attributes = {}
-        print("loading attributes...")
-        for line in lines:
-            id = line.split(" ")[0] # No. of attribute, 28 categories, 312 in total
-            info = line.split(" ")[1].split("::")
-            if info[0] in attributes.keys():
-                attributes[info[0]] += [int(id)]
-            else:
-                attributes[info[0]] = [int(id)]
-
-        return attributes
 
     def get_semantic(self, n, index, set=0, file_path=None):
-        #attributes = self.get_attribute()
         attributes = np.array(range(1, 313))
-        n_att = len(attributes)
-        #n_att = len(attributes.keys())  # 312
+        n_att = len(attributes) #312
         birds_at = {}
         print("loading semantics...")
         file = open(self.semantics_path2, "r")
@@ -141,11 +125,6 @@ class DataSet:
 
             id_att = int(line.split(" ")[1]) - 1
             birds_at[id_bird][id_att] = int(line.split(" ")[2])
-            #present = int(line.split(" ")[2])
-            #if present:
-            #    for i, key in enumerate(attributes.keys()):
-            #        if id_att in attributes[key]:
-            #            birds_at[id_bird][i] += np.where(np.array(attributes[key]) == id_att)[0][0]
 
         birds_semantics = []  # 11788*312 list
         for i, key in enumerate(birds_at.keys()):
@@ -249,9 +228,9 @@ class DataSet:
             np.array([item.name for item in self.data_dir.glob('[!.]*') if item.name != "LICENSE.txt"]))
         train_list_ds, test_list_ds = self.get_split(index=False)
         #dataset = train_list_ds.interleave(tf.data.TFRecordDataset, cycle_length=FLAGS.num_parallel_reads, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        train_ds = train_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE)
-        test_ds = test_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE).shuffle(6000)
-        valid_ds = test_ds.take(2000).batch(batch_size).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+        train_ds = train_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE).shuffle(8000)
+        test_ds = test_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE).shuffle(3000)
+        #valid_ds = test_ds.take(2000).batch(batch_size).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
         train = self.prepare_for_training(train_ds, batch_size)
         test = self.prepare_for_training(test_ds, batch_size)
         for image, label in train.take(1):
@@ -280,12 +259,13 @@ if __name__ == '__main__':
     bird_data = DataSet(path_root)
     # load all imgs
     phi = bird_data.get_phi(set=0)
-    w = bird_data.get_w(alpha=0) #(50*150)
+    w = bird_data.get_w(alpha=1) #(50*150)
     train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
-    #train_ds, test_ds = bird_data.load_gpu(batch_size=4)
+    # test for running on gpu
+    train_ds, test_ds = bird_data.load_gpu(batch_size=4)
     # only take 1000 images for local test
     # train_ds = bird_data.load(GPU=False, train=True, batch_size=32)
-    # test_ds = bird_data.load(GPU=False, train=False, batch_size=32)
+    #test_ds = bird_data.load(GPU=False, train=False, batch_size=32)
     """
     filename1 = 'train_ds.tfrecord'
     writer1 = tf.data.experimental.TFRecordWriter(filename1)
