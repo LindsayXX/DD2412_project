@@ -31,7 +31,6 @@ class BaseModel(tf.keras.Model):
 
     @tf.function
     def call(self, x, phi):
-        print(x.shape)
         resized = tf.image.resize(x, (224, 224))  # δίνει (32,224,224,3)
         features = self.vgg_features(resized)  # δίνει (32,7,7,512)
         global_theta = self.gp(features)  # tensor of shape (32,512)
@@ -39,8 +38,8 @@ class BaseModel(tf.keras.Model):
         global_scores = tf.linalg.matmul(global_mapped, phi)
         # out = self.fc(out)  #prediction (batch_size, 200)
 
-        return global_scores  # , out
-
+        return tf.math.l2_normalize(global_scores)  # , out
+        #return global_scores
 
 @tf.function
 def loss_baseline(score, labels):
@@ -74,6 +73,9 @@ if __name__ == '__main__':
 
     model = BaseModel(200, 28)
     opt = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)  # or SGDW with weight decay
+    opt = tf.optimizers.SGDW(
+        learning_rate=0.05, weight_decay=5 * 1e-4, momentum=0.9)
+
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=model)
     manager = tf.train.CheckpointManager(ckpt, path_root + '/tf_ckpts',
                                          max_to_keep=3)  # keep only the three most recent checkpoints
@@ -84,7 +86,6 @@ if __name__ == '__main__':
     test_loss = tf.keras.metrics.Mean(name='test_loss')
     test_accuracy = tf.keras.metrics.Accuracy(name='test_accuracy')
 
-
     @tf.function
     def test_step(images, labels):
         scores = model(images, phi)
@@ -93,7 +94,6 @@ if __name__ == '__main__':
 
         test_loss(t_loss)
         test_accuracy(tf.expand_dims(labels, -1), tf.expand_dims(t_pred, -1))
-
 
     @tf.function
     def train_step(images, labels):

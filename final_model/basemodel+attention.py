@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import PIL
+from PIL import Image
 import tensorflow as tf
 from Multi_attention_subnet import Kmeans, WeightedSum, Average_Pooling
 from Cropping_subnet import RCN, Crop
@@ -166,12 +166,15 @@ if __name__ == '__main__':
         train_accuracy_results = []
         for images, labels in DS:
             #if images.shape[0] == 4:
+            #m0, m1, mask0, mask1, croped0, croped1, newmask0, newmask1 = modelaki(images)
             croped0, newmask0 = train_step(modelaki, images, loss_fun, opt_fun, batch_size=4)
             tf.print(croped0.shape, newmask0.shape)
-            crop0 = K.eval(croped0)
-            print(crop0[0])
-            im = crop0[0]
-            plt.imshow(im)#, interpolation='nearest')
+            plt.imshow(K.eval(croped0)[0])#.astype(np.float32) #, interpolation='nearest')
+            plt.show()
+            plt.imshow(images[0].numpy().astype(np.float32))
+            plt.show()
+            #plt.imshow(K.eval(newmask0)[0].astype(np.uint8))
+            plt.imshow(K.eval(newmask0)[0])
             plt.show()
 
             tf.print('Epoch {}, train_Loss: {}\n'.format(epoch + 1, train_loss.result()))

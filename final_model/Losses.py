@@ -133,5 +133,6 @@ class Loss():
         cct = self.loss_CCT(phi, y_true, C)
         return div + cpt + cls + cct
 
+    @tf.function
     def loss_MA(self, m0, m1, mask0, mask1, batch_size):
         return self.loss_DIV(m0, m1) + self.loss_CPT(m0, m1, mask0, mask1, batch_size)
