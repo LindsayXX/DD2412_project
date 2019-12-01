@@ -2,16 +2,11 @@ import os
 #os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 import tensorflow as tf
 import numpy as np
-#from PIL import Image
-#import skimage
-#import tensorflow_datasets as tfds
-#import matplotlib.pyplot as plt
-from tensorflow.python.keras import backend as K
 from tqdm import tqdm
 import pathlib
 import scipy.io as sio
 from sklearn.linear_model import Ridge
-import pickle
+#import pickle
 
 
 BATCH_SIZE = 32
