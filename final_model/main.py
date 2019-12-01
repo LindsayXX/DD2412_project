@@ -38,9 +38,9 @@ def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun, epoch):
 
 # test the model
 # @tf.function
-def test_step(model, image_batch, W, PHI_test, PHI_train):
-    m0, m1, mask0, mask1, scores, phi, y_pred, C = model(image_batch, PHI_test)
-    class_unseen = Classifier_Unseen(W, C, PHI_train, PHI_test)
+def test_step(model, image_batch, W, phi_test):
+    m0, m1, mask0, mask1, scores, phi, y_pred, C = model(image_batch, phi_test)
+    class_unseen = Classifier_Unseen(W, C)
     classification = class_unseen(phi, scores)
     #print("Current TestLoss: {}".format(loss))
     return classification
@@ -56,9 +56,16 @@ if __name__ == '__main__':
 
     # read dataset
     path_root = os.path.abspath(os.path.dirname(__file__))
-    database = DataSet("/Volumes/Watermelon")  # path_root)
-    PHI = database.get_phi()
-    DS, DS_test = database.load_gpu(batch_size=5)  # image_batch, label_batch
+    bird_data = DataSet("/Volumes/Watermelon")# DataSet(path_root)
+    phi = bird_data.get_phi(set=0)
+    w = bird_data.get_w(alpha=1)  # (50*150)
+    train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
+    train_ds, test_ds = bird_data.load_gpu(batch_size=4)
+
+    #path_root = os.path.abspath(os.path.dirname(__file__))
+    #database = DataSet("/Volumes/Watermelon")  # path_root)
+    #PHI = database.get_phi()
+    #DS, DS_test = database.load_gpu(batch_size=5)  # image_batch, label_batch
     modelaki = FinalModel()
 
     # define loss and opt functions
@@ -101,9 +108,9 @@ if __name__ == '__main__':
     for epoch in range(EPOCHS):
         train_loss_results = []
         train_accuracy_results = []
-        for images, labels in DS:
+        for images, labels in train_ds:
             if images.shape[0] == BATCH_SIZE:
-                train_step(modelaki, images, labels, PHI, loss_fun, opt_fun, epoch)
+                train_step(modelaki, images, labels, phi, loss_fun, opt_fun, epoch)
                 train_loss_results.append(train_loss.result())
                 train_accuracy_results.append(train_accuracy.result())
                 count += 1
@@ -125,4 +132,4 @@ if __name__ == '__main__':
     W = tf.ones((nu, ns))
     seen_classes = tf.range(nu, ns + nu)
     unseen_classes = tf.range(nu)
-    classification = test_step(modelaki, DS_test, W, PHI_test, PHI_train)
+    classification = test_step(modelaki, test_ds, W)
