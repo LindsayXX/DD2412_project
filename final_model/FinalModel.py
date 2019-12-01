@@ -5,6 +5,8 @@ from tensorflow.keras.optimizers.schedules import PiecewiseConstantDecay
 from Classification import Classifier, Classifier_Unseen
 from Multi_attention_subnet import Kmeans, WeightedSum
 from Cropping_subnet import RCN, Crop
+import os
+from dataloader import DataSet
 
 CHANNELS = 512
 BATCH_SIZE = 32
@@ -14,7 +16,7 @@ IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 
 
-class FinalModel(tf.kears.Model):
+class FinalModel(tf.keras.Model):
 
     def __init__(self):
         super(FinalModel, self).__init__()
@@ -155,3 +157,17 @@ class FinalModel(tf.kears.Model):
         y_pred = self.classifier(score)
 
         return m0, m1, mask0, mask1, score, phi_mapped, y_pred, self.C
+
+if __name__ == '__main__':
+    # just for testing
+    path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
+    bird_data = DataSet("D:/MY2/ADDL/DD2412_project/basemodel")
+    PHI = bird_data.get_phi(set=0)
+    #w = bird_data.get_w(alpha=1)  # (50*150)
+    #train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
+    # only take 1000 images for local test
+    train_ds = bird_data.load(GPU=False, train=True, batch_size=4)
+    # test_ds = bird_data.load(GPU=False, train=False, batch_size=32)
+    image_batch, label_batch = next(iter(train_ds))
+    test_model = FinalModel()
+    m0, m1, mask0, mask1, scores, phi, y_pred, C = test_model(image_batch, PHI)

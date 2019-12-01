@@ -18,6 +18,7 @@ NUM_CLASSES = 200
 class DataSet:
 
     def __init__(self, path_root):
+        self.path_root = path_root
         self.data_dir = pathlib.Path(path_root + '/CUB_200_2011/CUB_200_2011/images')
         self.image_path = path_root + "/CUB_200_2011/CUB_200_2011/images/"
         self.image_name_path = path_root + "/CUB_200_2011/CUB_200_2011/images.txt"
@@ -33,7 +34,7 @@ class DataSet:
         if GPU:
             n = len(index)
         else:
-            n = 1000
+            n = 100
         if train:
             #phi = self.get_phi(index)# Φ, semantic matrix, 28*200
             labels = self.get_label(n, index, set=0)
@@ -149,7 +150,7 @@ class DataSet:
             return ids
         """
         # get the train/test set classes
-        mat_fname = 'train_test_split_'
+        mat_fname = self.path_root + '/train_test_split_'
         if mode == "easy":
             inds = sio.loadmat(mat_fname + 'easy')
         else:
@@ -256,7 +257,7 @@ class DataSet:
 if __name__ == '__main__':
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
     path_root = os.path.abspath(os.path.dirname(__file__))  # '/content/gdrive/My Drive/data'
-    bird_data = DataSet(path_root)
+    bird_data = DataSet("D:/MY2/ADDL/DD2412_project/basemodel")
     # load all imgs
     phi = bird_data.get_phi(set=0)
     w = bird_data.get_w(alpha=1) #(50*150)
@@ -274,4 +275,3 @@ if __name__ == '__main__':
     #raw_dataset = tf.data.TFRecordDataset(filenames)
     """
     #image_batch, label_batch = next(iter(ds_train))
-
