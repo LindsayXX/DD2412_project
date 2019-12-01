@@ -37,5 +37,4 @@ class Classifier_Unseen(layers.Layer):
         b_phi = tf.tensordot(phi, self.PHI_cct)
         sum_s_phi = scores + tf.multiply(self.beta, b_phi)
         argmax = tf.argmax(sum_s_phi)
-
-        return tf.gather_nd(self.unseen_classes, argmax)
+        return argmax

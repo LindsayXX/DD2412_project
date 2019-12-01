@@ -24,9 +24,7 @@ IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 def train_step(model, image_batch, y_true, PHI, loss_fun, opt_fun, epoch):
     with tf.GradientTape() as tape:
         m0, m1, mask0, mask1, scores, phi, y_pred, C = model(image_batch, PHI)
-        loss = loss_fun(m0, m1, mask0, mask1, scores,
-                        phi, y_true, y_pred,
-                        N_CLASSES, image_batch.shape[0], C)
+        loss = loss_fun(m0, m1, mask0, mask1, scores, phi, y_true, image_batch.shape[0], C)
     gradients = tape.gradient(loss, model.trainable_variables)
     opt_fun.apply_gradients(zip(gradients, model.trainable_variables))
 
@@ -57,7 +55,7 @@ if __name__ == '__main__':
     # read dataset
     path_root = os.path.abspath(os.path.dirname(__file__))
     bird_data = DataSet("/Volumes/Watermelon")# DataSet(path_root)
-    phi = bird_data.get_phi(set=0)
+    phi_train = bird_data.get_phi(set=0)
     w = bird_data.get_w(alpha=1)  # (50*150)
     train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
     train_ds, test_ds = bird_data.load_gpu(batch_size=4)
@@ -110,7 +108,7 @@ if __name__ == '__main__':
         train_accuracy_results = []
         for images, labels in train_ds:
             if images.shape[0] == BATCH_SIZE:
-                train_step(modelaki, images, labels, phi, loss_fun, opt_fun, epoch)
+                train_step(modelaki, images, labels, phi_train, loss_fun, opt_fun, epoch)
                 train_loss_results.append(train_loss.result())
                 train_accuracy_results.append(train_accuracy.result())
                 count += 1
@@ -127,9 +125,5 @@ if __name__ == '__main__':
         print(template.format(epoch + 1, train_loss))
 
     # TEST UNSEEN CLASSES
-    nu = 50
-    ns = 150
-    W = tf.ones((nu, ns))
-    seen_classes = tf.range(nu, ns + nu)
-    unseen_classes = tf.range(nu)
-    classification = test_step(modelaki, test_ds, W)
+    phi_test = bird_data.get_phi(set=0)
+    classification = test_step(modelaki, test_ds, w, phi_test)

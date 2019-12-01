@@ -1,3 +1,5 @@
+import os
+
 import tensorflow as tf
 from tensorflow_core.python.keras.optimizer_v2.learning_rate_schedule import PiecewiseConstantDecay
 
@@ -35,9 +37,12 @@ if __name__ == '__main__':
     ckpt.restore(tf.train.latest_checkpoint('./tf_ckpts/'))
 
     #DATA
-    database = DataSet("/Volumes/Watermelon")
-    PHI = database.get_phi()
-    ds = database.load(batch_size=5)
+    path_root = os.path.abspath(os.path.dirname(__file__))
+    bird_data = DataSet("/Volumes/Watermelon")  # DataSet(path_root)
+    phi_train = bird_data.get_phi(set=0)
+    w = bird_data.get_w(alpha=1)  # (50*150)
+    train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
+    train_ds, test_ds = bird_data.load_gpu(batch_size=4)
     #for im, label in ds:
     #im_path = "/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/059.California_Gull/"
     #img = tf.io.read_file(im_path)
@@ -50,7 +55,8 @@ if __name__ == '__main__':
     W = tf.ones((nu, ns))
     seen_classes = tf.ones((ns, 28))
     unseen_classes = tf.ones((nu, 28))
-    for im, label in ds:
-        classification = test_step(net, im, W, seen_classes, unseen_classes)
+    phi_test = bird_data.get_phi(set=1)
+    for im, label in train_ds:
+        classification = test_step(net, im, W, phi_test)
 
     print("wena")
