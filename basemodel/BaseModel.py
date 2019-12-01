@@ -19,7 +19,7 @@ class BaseModel(tf.keras.Model):
         #                                                weights='imagenet')
         #self.gp = tf.keras.layers.GlobalAveragePooling2D()
         self.vgg_features_new = tf.keras.applications.VGG19(input_shape=(IMG_SIZE / 2, IMG_SIZE / 2, 3), include_top=False,
-                                                        pooling = 'avg', weights='imagenet')
+                                                        pooling='avg', weights='imagenet')
         self.vgg_features_new.trainable = False
         #w_init = tf.random_normal_initializer(0, 0.01)  # default: (0,0.05)
         #self.W = tf.Variable(initial_value=w_init(shape=(512, semantic_size), dtype='float32'), trainable=True,
