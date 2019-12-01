@@ -96,8 +96,8 @@ if __name__ == '__main__':
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
-    EPOCHS = 1
-    CHECKEPOCHS = 3
+    EPOCHS = 500
+    CHECKEPOCHS = 5
 
     count = 0
     # run for each epoch and batch
@@ -113,6 +113,8 @@ if __name__ == '__main__':
                 train_accuracy_results.append(train_accuracy.result())
                 count += 1
                 if count % 50 == 0:
+                    template = 'Count {}, Loss: {}, Accuracy: {}'
+                    print(template.format(count + 1, train_loss, train_accuracy))
                     with open(path_root + '/log.txt', 'a') as temp:
                         temp.write('Epoch: {}, step: {}, train_Loss: {}, train_Accuracy: {}\n'.format(
                             epoch + 1, count, sum(train_loss_results) / len(train_accuracy_results),
@@ -121,9 +123,10 @@ if __name__ == '__main__':
         if int(ckpt.step) % CHECKEPOCHS == 0:
             save_path = manager.save()
 
-        template = 'Epoch {}, Loss: {}'
-        print(template.format(epoch + 1, train_loss))
+        template = 'Epoch {}, Loss: {}, Accuracy: {}'
+        print(template.format(epoch + 1, train_loss, train_accuracy))
 
     # TEST UNSEEN CLASSES
     phi_test = bird_data.get_phi(set=0)
-    classification = test_step(modelaki, test_ds, w, phi_test)
+    for images, labels in test_ds:
+        classification = test_step(modelaki, images, w, phi_test)

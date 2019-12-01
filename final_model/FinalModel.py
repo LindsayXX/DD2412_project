@@ -169,17 +169,17 @@ class FinalModel(Model):
         # average scores
         sum_gl = tf.add(global_scores, local_scores0)
         sum_gll = tf.add(sum_gl, local_scores1)
-        avg_score = tf.multiply(sum_gll, 1.0 / 3.0)
+        #avg_score = tf.multiply(sum_gll, 1.0 / 3.0)
 
         # average phi
         sum_gl = tf.add(global_phi, local0_phi)
         sum_gll = tf.add(sum_gl, local1_phi)
-        avg_phi = tf.multiply(sum_gll, 1.0 / 3.0)
+        #avg_phi = tf.multiply(sum_gll, 1.0 / 3.0)
 
         # average
-        y_pred = self.classifier(avg_score)
+        y_pred = self.classifier(sum_gll)
 
-        return m0, m1, mask0, mask1, avg_score, avg_phi, y_pred, self.C
+        return m0, m1, mask0, mask1, sum_gll, sum_gll, y_pred, self.C
 
 
 # @tf.function
