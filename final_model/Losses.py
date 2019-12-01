@@ -73,20 +73,32 @@ class Loss():
         # return tf.tensordot(tf.reshape(m_i,[-1]), tf.reshape(m_k_tilt, [-1]), 1)
 
     @tf.function
-    def loss_CCT(self, global_phi, local0_phi, local1_phi, labels, C):
-        N = global_phi.shape[0]
+    def loss_CCT(self, phi, labels, C):
+        N = phi.shape[0]
         loss = 0.0
         norm_C = tf.math.l2_normalize(C, axis=1)
-        sum_gl = tf.add(global_phi, local0_phi)
-        sum_gg = tf.add(sum_gl, local1_phi)
-        phi = tf.multiply(sum_gg, 1.0 / 3.0)
         for s in range(phi.shape[0]):
-            diff = tf.math.abs(norm_C - tf.math.l2_normalize(global_phi[s, :]))
+            diff = tf.math.abs(norm_C - tf.math.l2_normalize(phi[s, :]))
             diff_l2 = tf.reduce_sum(tf.multiply(diff, diff), 1)
             sum_diff = tf.reduce_sum(diff_l2) - 2 * diff_l2[labels[s]] + self.margin_cct
             if sum_diff > 0.0:
                 loss = loss + sum_diff
-        return loss/5
+        return loss
+
+    # def loss_CCT(self, global_phi, local0_phi, local1_phi, labels, C):
+    #     N = global_phi.shape[0]
+    #     loss = 0.0
+    #     norm_C = tf.math.l2_normalize(C, axis=1)
+    #     sum_gl = tf.add(global_phi, local0_phi)
+    #     sum_gg = tf.add(sum_gl, local1_phi)
+    #     phi = tf.multiply(sum_gg, 1.0 / 3.0)
+    #     for s in range(phi.shape[0]):
+    #         diff = tf.math.abs(norm_C - tf.math.l2_normalize(global_phi[s, :]))
+    #         diff_l2 = tf.reduce_sum(tf.multiply(diff, diff), 1)
+    #         sum_diff = tf.reduce_sum(diff_l2) - 2 * diff_l2[labels[s]] + self.margin_cct
+    #         if sum_diff > 0.0:
+    #             loss = loss + sum_diff
+    #     return loss / 5
 
         # for f in range(semantic_features.shape[0]):
         #     sf = semantic_features[f, :, :]
@@ -99,10 +111,7 @@ class Loss():
         # return loss/N
 
     @tf.function
-    def loss_CLS(self, global_scores, local_scores0, local_scores1):
-        sum_gl = tf.add(global_scores, local_scores0)
-        sum_gg = tf.add(sum_gl, local_scores1)
-        scores = tf.multiply(sum_gg, 1.0 / 3.0)
+    def loss_CLS(self, scores):
         exp_score = tf.math.exp(scores)
         loss = 0.0
         N = exp_score.shape[0]
@@ -117,12 +126,11 @@ class Loss():
     def loss_baseline(self, score, labels):
         tf.nn.softmax_cross_entropy_with_logits(score, labels)
 
-    def final_loss(self, m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, global_phi, local0_phi,
-                   local1_phi, y_true, y_pred, n_classes, batch_size, C):
+    def final_loss(self, m0, m1, mask0, mask1, scores, phi, y_true, batch_size, C):
         div = self.loss_DIV(m0, m1)
         cpt = self.loss_CPT(m0, m1, mask0, mask1, batch_size)
-        cls = self.loss_CLS(global_scores, local_scores0, local_scores1)
-        cct = self.loss_CCT(global_phi, local0_phi, local1_phi, y_true, C)
+        cls = self.loss_CLS(scores)
+        cct = self.loss_CCT(phi, y_true, C)
         return div + cpt + cls + cct
 
     def loss_MA(self, m0, m1, mask0, mask1, batch_size):

@@ -1,10 +1,19 @@
 import tensorflow as tf
 from tensorflow_core.python.keras.optimizer_v2.learning_rate_schedule import PiecewiseConstantDecay
 
+from Classification import Classifier_Unseen
 from dataloader import DataSet
 from final_model.Losses import Loss
 from final_model.FinalModel import FinalModel
 import tensorflow_addons as tfa
+
+def test_step(model, image_batch, W, seen_classes, unseen_classes):
+    m0, m1, mask0, mask1, scores, \
+    phi, y_pred, C = model(image_batch, PHI)
+    class_unseen = Classifier_Unseen(W, C)
+    classification = class_unseen(phi, scores)
+    #print("Current TestLoss: {}".format(loss))
+    return classification
 
 if __name__ == '__main__':
     # LOSS AND OPT
@@ -29,10 +38,19 @@ if __name__ == '__main__':
     database = DataSet("/Volumes/Watermelon")
     PHI = database.get_phi()
     ds = database.load(batch_size=5)
-    for im, label in ds:
+    #for im, label in ds:
     #im_path = "/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/059.California_Gull/"
     #img = tf.io.read_file(im_path)
     #im = database.decode_img(img)
-        m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, \
-        global_phi, local0_phi, local1_phi, y_pred, C = net(im, PHI) #tf.expand_dims(im,0)
+        # m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, \
+        # global_phi, local0_phi, local1_phi, y_pred, C = net(im, PHI) #tf.expand_dims(im,0)
+
+    nu = 50
+    ns = 150
+    W = tf.ones((nu, ns))
+    seen_classes = tf.ones((ns, 28))
+    unseen_classes = tf.ones((nu, 28))
+    for im, label in ds:
+        classification = test_step(net, im, W, seen_classes, unseen_classes)
+
     print("wena")
