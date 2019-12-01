@@ -1,7 +1,7 @@
 from tensorflow.keras import layers
 import tensorflow as tf
 
-BATCH_SIZE = 32
+BATCH_SIZE = 4
 IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 IMG_HEIGHT = 448
@@ -17,11 +17,12 @@ class Kmeans(layers.Layer):
             two lists, each one contains 32 tensors of shape (512,14,14)
         '''
 
-    def __init__(self, clusters_n=2, iterations=10, total_channels=512):
+    def __init__(self, clusters_n=2, iterations=10, total_channels=N_CHANNELS, batch_size=BATCH_SIZE):
         super(Kmeans, self).__init__()
         self.clusters_n = clusters_n
         self.iterations = iterations
         self.total_channels = total_channels
+        self.batch_size = batch_size
 
     def cluster(self, inputs):
         # center of the clusters
@@ -54,7 +55,7 @@ class Kmeans(layers.Layer):
 
     def cluster2(self, inputs):
         # center of the clusters
-        centroids = tf.Variable(tf.slice(tf.random.shuffle(inputs), [0, 0, 0], [BATCH_SIZE, self.clusters_n, self.clusters_n]),
+        centroids = tf.Variable(tf.slice(tf.random.shuffle(inputs), [0, 0, 0], [self.batch_size, self.clusters_n, self.clusters_n]),
                                 aggregation=tf.VariableAggregation.SUM, trainable=False)
         # cluster assignment: points belong to each cluster
         assignments = tf.Variable(tf.random.uniform((inputs.shape[0:2]), minval=0, maxval=1, dtype=tf.dtypes.int64),
@@ -71,7 +72,7 @@ class Kmeans(layers.Layer):
 
             # compute new clusters' values
             new_centroids = []
-            for b in range(BATCH_SIZE):
+            for b in range(self.batch_size):
                 assig0 = tf.cast(assignments[b, :], tf.dtypes.bool)
                 m0 = tf.expand_dims(tf.math.reduce_mean(
                     tf.gather_nd(inputs[b, :, :], tf.where(assig0)), 0), 0)  # tf.reshape( , [1, -1])
@@ -106,7 +107,7 @@ class Kmeans(layers.Layer):
         total_assig1 = []
         l0 = tf.zeros((1, 14, 14))
         l1 = tf.ones((1, 14, 14))
-        for b in range(BATCH_SIZE):
+        for b in range(self.batch_size):
             assig0 = []
             assig1 = []
 
@@ -115,7 +116,7 @@ class Kmeans(layers.Layer):
 
             def f1():
                 return l1, l0
-            for c in range(N_CHANNELS):
+            for c in range(self.batch_size):
                 value = tf.gather_nd(assignments, [b, c])
                 v1, v0 = tf.case([(tf.greater(value, 0), f1)], f0)
                 assig0.append(v0)
@@ -146,7 +147,7 @@ class Kmeans(layers.Layer):
         C1 = tf.transpose(cluster1, [0, 2, 3, 1])
         return C0, C1
 
-        # for b in range(BATCH_SIZE):
+        # for b in range(self.batch_size):
         #     cluster0 = []
         #     cluster1 = []
         #     assigned0 = tf.where(tf.equal(assignments[b, :], 0))

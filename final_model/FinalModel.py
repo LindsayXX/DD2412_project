@@ -26,7 +26,7 @@ class FinalModel(tf.keras.Model):
                                                                 include_top=False,
                                                                 weights='imagenet')  # VGG_feature()
         self.vgg_features_initial.trainable = False
-        self.kmeans = Kmeans(clusters_n=2, iterations=10)
+        self.kmeans = Kmeans(clusters_n=2, iterations=10, batch_size=BATCH_SIZE)
         self.average_pooling_0 = tf.keras.layers.GlobalAveragePooling2D()
         self.average_pooling_1 = tf.keras.layers.GlobalAveragePooling2D()
         self.fc1_1 = tf.keras.layers.Dense(CHANNELS, input_shape=(512,), activation="relu")
@@ -121,7 +121,7 @@ class FinalModel(tf.keras.Model):
         del newmask1
         del newmask2
 
-        print("RESHAPE")
+        print("RESIZE")
         # resizing the outputs of cropping network
         full_image = tf.image.resize(x, (224, 224)) #self.reshape_global(x)
         attended_part0 = tf.image.resize(croped0, (224, 224)) #self.reshape_local0(croped0)
