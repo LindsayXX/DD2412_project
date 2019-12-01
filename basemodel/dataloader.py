@@ -228,7 +228,7 @@ class DataSet:
             np.array([item.name for item in self.data_dir.glob('[!.]*') if item.name != "LICENSE.txt"]))
         train_list_ds, test_list_ds = self.get_split(index=False)
         #dataset = train_list_ds.interleave(tf.data.TFRecordDataset, cycle_length=FLAGS.num_parallel_reads, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        train_ds = train_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE).shuffle(8000)
+        train_ds = train_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE).shuffle(9000)
         test_ds = test_list_ds.map(self.process_path, num_parallel_calls=self.AUTOTUNE).shuffle(3000)
         #valid_ds = test_ds.take(2000).batch(batch_size).repeat().batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
         train = self.prepare_for_training(train_ds, batch_size)

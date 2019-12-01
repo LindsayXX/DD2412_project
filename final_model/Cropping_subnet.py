@@ -1,26 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras.optimizers import SGD
+import tensorflow.keras.layers as layers
 import matplotlib.pyplot as plt
 import numpy as np
-from tensorflow.keras import layers
-
-
-class ReShape224(layers.Layer):
-    """
-    This is used to resize full image and attended part-images generated from Cropping subnet
-    Args:
-        tensor of shape (32,448,448,3) which comes from Cropping subnet
-    Returns:
-        tensor of shape (dynamic_batch_size, 224,224,3).
-        (in order to resize the size of the batch becomes dynamic)
-    """
-
-    def __init__(self):
-        super(ReShape224, self).__init__()
-
-    def call(self, input):
-        out = tf.image.resize(input, [224, 224])
-        return out
 
 
 class RCN(tf.keras.Model):

@@ -10,7 +10,7 @@ from tensorflow.python.keras import backend as K
 from Losses import Loss
 
 CHANNELS = 512
-N_CLASSES = 200
+N_CLASSES = 150
 SEMANTIC_SIZE = 28
 IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
@@ -24,11 +24,11 @@ class FinalModel(tf.keras.Model):
         # MULTI ATTENTION SUBNET
         self.vgg_features_initial = tf.keras.applications.VGG19(input_shape=IMG_SHAPE,
                                                                 include_top=False,
-                                                                weights='imagenet')  # VGG_feature()
+                                                                weights='imagenet')
         self.vgg_features_initial.trainable = False
         self.kmeans = Kmeans(clusters_n=2, iterations=10)
-        self.average_pooling_0 = Average_Pooling()
-        self.average_pooling_1 = Average_Pooling()
+        self.average_pooling_0 = tf.keras.layers.GlobalAveragePooling2D()#Average_Pooling()
+        self.average_pooling_1 = tf.keras.layers.GlobalAveragePooling2D()#Average_Pooling()
 
         self.fc1_1 = tf.keras.layers.Dense(512, activation="relu")
         self.fc1_2 = tf.keras.layers.Dense(512, activation="relu")
@@ -128,7 +128,6 @@ def test_step(model, images, loss_fun):
 # testing by running
 
 if __name__ == '__main__':
-
     # tf.compat.v1.enable_eager_execution()
     gpu = tf.config.experimental.list_physical_devices('GPU')
     print("Num GPUs Available: ", len(gpu))

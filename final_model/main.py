@@ -4,19 +4,15 @@ from tensorflow.keras.optimizers.schedules import PiecewiseConstantDecay
 import tensorflow_addons as tfa
 import datetime
 
-import FinalModel
+from FinalModel import FinalModel
 from Classification import Classifier_Unseen
 from Losses import Loss
 from dataloader import DataSet
 
-import sys
-sys.path.append("../src")
-from jointmodel import JFL
-
 CHANNELS = 512
 BATCH_SIZE = 32
-N_CLASSES = 200
-SEMANTIC_SIZE = 28
+N_CLASSES = 150
+SEMANTIC_SIZE = 312#28
 IMG_SIZE = 448
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
 
@@ -58,7 +54,7 @@ if __name__ == '__main__':
     phi_train = bird_data.get_phi(set=0)
     w = bird_data.get_w(alpha=1)  # (50*150)
     train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
-    train_ds, test_ds = bird_data.load_gpu(batch_size=4)
+    train_ds, test_ds = bird_data.load_gpu(batch_size=BATCH_SIZE)
 
     #path_root = os.path.abspath(os.path.dirname(__file__))
     #database = DataSet("/Volumes/Watermelon")  # path_root)
@@ -96,13 +92,12 @@ if __name__ == '__main__':
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
-    EPOCHS = 500
+    EPOCHS = 100
     CHECKEPOCHS = 5
-
     count = 0
     # run for each epoch and batch
     # loss and accuracy are saved every 50 updates
-    # model saved every 3 epochs
+    # model saved every CHECKEPOCHS epochs
     for epoch in range(EPOCHS):
         train_loss_results = []
         train_accuracy_results = []
@@ -122,9 +117,6 @@ if __name__ == '__main__':
         ckpt.step.assign_add(1)
         if int(ckpt.step) % CHECKEPOCHS == 0:
             save_path = manager.save()
-
-        template = 'Epoch {}, Loss: {}, Accuracy: {}'
-        print(template.format(epoch + 1, train_loss, train_accuracy))
 
     # # TEST UNSEEN CLASSES
     # phi_test = bird_data.get_phi(set=0)

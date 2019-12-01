@@ -13,53 +13,38 @@ IMG_SIZE = 448
 '''Region Cropping Subnet'''
 
 '''Joint Feature Learning Subnet'''
-
-
 class JFL(tf.keras.Model):
-    def __init__(self, n_classes = 200, semantic_size = 28, feature_size = 512):
+    def __init__(self, n_classes = 150, semantic_size = 312, feature_size = 512):
         super(JFL, self).__init__()
         # mapped feature is a vector of size as semantic feature size (n)
         self.n = semantic_size
-        self.embedding = tf.keras.layers.Embedding(self.n,
-                                                   n_classes)  # input: class label, embedding_size=semantic_size
         self.W = tf.keras.layers.Dense(self.n, activation="relu", input_shape=(feature_size,))
         self.l2loss = tf.keras.layers.Lambda(
             lambda x: tf.keras.backend.sum(tf.keras.backend.square(x[0] - x[1][:, 0]), 1, keepdims=True))
         self.fc = tf.keras.layers.Dense(n_classes, activation="softmax")
-
-    def call(self, thetas, phi):
-        """
-        input: theta - visual feature vector
-        input: phi - semantic feature vector
-        2 'embedding': visual feature(512, 1) ->[W]-> semantic feature(?, 1) and
-        semantic feature(?, 1) ->[center]-> classes-semantic embedding (n_classes, ?)
-        """
         # trainable class centers, C={c1, c2, ..., c_{n_classes}}
-        # initialize: (0, 0.01) Gaussian distribution
-        #center = self.embedding(tf.squeeze(phi))  # batch_size, n_classes, semantic_size
-        n_thetas = thetas.shape[0]
-        scores = tf.TensorArray(tf.float32, size=n_thetas)
-        phi_samples = tf.TensorArray(tf.float32, size=n_thetas)
-        # need further model integration
-        for i in range(n_thetas):
-            theta = tf.expand_dims(thetas[i, :], 0)
-            # theta = self.reshape(theta)
-            out = self.W(theta)  # should have size 1 * n
-            phi_samples.write(i, out)
-            # compatibility score: s_j^i = theta_i(x)^T W_i phi(y_i)
-            scores.write(i, tf.linalg.matmul(out, phi))
-            # compute ||~phi_i - ~Ci|| and ||~phi_i - ~Cj||, '~' is normalization
-            #l2loss = self.l2loss(
-            #    [tf.math.l2_normalize(tf.squeeze(out)), tf.math.l2_normalize(tf.transpose(center, perm=[0, 2, 1]))])
-        scores = tf.squeeze(scores.stack())
-        phi_samples = tf.squeeze(phi_samples.stack())
-        #scores = tf.transpose(tf.squeeze(scores))
-        # Normalize the scores???
+        c_init = tf.random_normal_initializer(0, 0.01)
+        self.C = tf.Variable(initial_value=c_init(shape=(semantic_size, n_class), dtype='float32'), trainable=True,name="C")
+
+    def call(self, theta, Phi):
+        """
+        input: theta - visual feature of size: batch_size * 512
+        input: phi - semantic feature matrix: 312 * 150(n_classes)
+        2 'embedding': visual feature(512, 1) ->[W]-> semantic feature(312, 1) and
+        semantic feature(312, 1) ->[center]-> classes-semantic embedding (n_classes, ?)
+        """
+        out = self.W(theta)  # should have size 1 * n_semantic
+        # compatibility score: s_j^i = theta_i(x)^T W_i phi(y_i)
+        scores = tf.linalg.matmul(out, Phi) # should have size 1 * n_classes
+        # compute ||~phi_i - ~Ci|| and ||~phi_i - ~Cj||, '~' is normalization
+        #l2loss = self.l2loss(
+        #    [tf.math.l2_normalize(tf.squeeze(out)), tf.math.l2_normalize(tf.transpose(center, perm=[0, 2, 1]))])
+        # Normalize the scores?
         # "normalize each descriptor independently, and concatenate them together into
         #  fully-connected fusion layer with softmax function for the final classification. "
-        #score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
+        score = tf.math.reduce_sum(scores, axis=1, keepdims=True)
 
-        return self.normalizer(scores), phi_samples #, l2loss
+        return score, out #, l2loss
 
     def normalizer(self, score):
         mean = tf.math.reduce_mean(score, 1)
