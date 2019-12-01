@@ -235,6 +235,7 @@ class DataSet:
         rr = Ridge(alpha=alpha)
         rr.fit(x, y)
         w = rr.coef_
+        np.save("Wseen", w)
         return w
 
     def process_path(self, file_path):
@@ -264,6 +265,19 @@ class DataSet:
 
         return train, test
 
+    def get_class_split(self, mode="easy"):
+        mat_fname = 'train_test_split_'
+        if mode == "easy":
+            inds = sio.loadmat(mat_fname + 'easy')
+        else:
+            inds = sio.loadmat(mat_fname + 'hard')
+        # get the train/test for each id
+        index_label = self.get_label(set=3)
+        ids = np.zeros(len(index_label))
+        classid_train = list(inds['train_cid'][0])
+        classid_test = list(inds['test_cid'][0])
+        return classid_train, classid_test
+
 
 if __name__ == '__main__':
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
@@ -271,8 +285,8 @@ if __name__ == '__main__':
     bird_data = DataSet(path_root)
     # load all imgs
     phi = bird_data.get_phi(set=0)
-    w = bird_data.get_w(alpha=0)
-    print(w.shape)
+    w = bird_data.get_w(alpha=0) #(50*150)
+    train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
     #train_ds, test_ds = bird_data.load_gpu(batch_size=4)
     # only take 1000 images for local test
     # train_ds = bird_data.load(GPU=False, train=True, batch_size=32)
