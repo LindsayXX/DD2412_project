@@ -167,7 +167,7 @@ class FinalModel(Model):
         local_scores1, local1_phi = self.joint_net_local1.call(local_theta1, phi)  # self.score1(local_theta1, phi)
 
         # average scores
-        sum_gl = tf.add(global_theta, local_scores0)
+        sum_gl = tf.add(global_scores, local_scores0)
         sum_gll_score = tf.add(sum_gl, local_scores1)
         #avg_score = tf.multiply(sum_gll, 1.0 / 3.0)
 

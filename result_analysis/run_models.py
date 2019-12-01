@@ -42,13 +42,14 @@ if __name__ == '__main__':
     phi_train = bird_data.get_phi(set=0)
     w = bird_data.get_w(alpha=1)  # (50*150)
     train_class_list, test_class_list = bird_data.get_class_split(mode="easy")
-    train_ds, test_ds = bird_data.load_gpu(batch_size=4)
-    #for im, label in ds:
-    #im_path = "/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/059.California_Gull/"
-    #img = tf.io.read_file(im_path)
-    #im = database.decode_img(img)
-        # m0, m1, mask0, mask1, global_scores, local_scores0, local_scores1, \
-        # global_phi, local0_phi, local1_phi, y_pred, C = net(im, PHI) #tf.expand_dims(im,0)
+    train_ds = bird_data.load(GPU=False, train=True, batch_size=32)
+    #test_ds = bird_data.load(GPU=False, train=False, batch_size=4) #.load_gpu(batch_size=4)
+    PHI = bird_data.get_phi(set=0)
+    for im, label in train_ds:
+        #im_path = "/Volumes/Watermelon/CUB_200_2011/CUB_200_2011/images/059.California_Gull/"
+        #img = tf.io.read_file(im_path)
+        #im = database.decode_img(img)
+        m0, m1, mask0, mask1, scores, phi, y_pred, C = net(im, PHI) #tf.expand_dims(im,0)
 
     nu = 50
     ns = 150
